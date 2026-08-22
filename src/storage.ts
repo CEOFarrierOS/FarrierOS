@@ -11,6 +11,7 @@ function mergeWithDefaults(saved: AppData): AppData {
   return {
     ...sampleData,
     ...saved,
+    membership: saved.membership ?? sampleData.membership,
     collaborationMembers: saved.collaborationMembers ?? sampleData.collaborationMembers,
     activityPings: saved.activityPings ?? sampleData.activityPings,
     appointments: mergeById(sampleData.appointments, saved.appointments ?? []),

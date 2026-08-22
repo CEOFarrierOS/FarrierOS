@@ -1,5 +1,5 @@
 export type Foot = "LF" | "RF" | "LH" | "RH";
-export type Screen = "today" | "calendar" | "clients" | "horses" | "prep" | "finish" | "addClient";
+export type Screen = "today" | "calendar" | "clients" | "horses" | "prep" | "finish" | "addClient" | "account";
 export type ServiceType = "trim" | "fronts" | "hinds" | "full_set" | "therapeutic";
 
 export interface FarrierBusinessProfile {
@@ -150,8 +150,26 @@ export interface ActivityPing {
   read: boolean;
 }
 
+export type MembershipStatus =
+  "development" | "trialing" | "active" | "grace_period" | "past_due" | "cancelled" | "expired";
+
+export interface Membership {
+  planId: "farrieros_full_monthly";
+  planName: "FarrierOS Full Access";
+  priceMonthlyCents: 799;
+  currency: "usd";
+  status: MembershipStatus;
+  entitlements: string[];
+  billingProvider: "development" | "stripe";
+  customerId?: string;
+  subscriptionId?: string;
+  currentPeriodEnd?: string;
+  lastVerifiedAt?: string;
+}
+
 export interface AppData {
   business: FarrierBusinessProfile;
+  membership: Membership;
   collaborationMembers: CollaborationMember[];
   activityPings: ActivityPing[];
   clients: Client[];

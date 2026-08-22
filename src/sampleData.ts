@@ -1,5 +1,6 @@
 import { AppData } from "./types";
 import { shiftDate, TODAY, TOMORROW } from "./dateUtils";
+import { fullAccessPlan } from "./membership";
 
 export { TODAY, TOMORROW };
 
@@ -13,6 +14,7 @@ export const sampleData: AppData = {
     baseLocation: "Fort Collins, CO",
     defaultServiceIntervalWeeks: 6,
   },
+  membership: fullAccessPlan,
   collaborationMembers: [
     {
       id: "member-owner",

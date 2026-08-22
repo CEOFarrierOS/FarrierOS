@@ -26,6 +26,10 @@ FarrierOS MVP is a responsive Progressive Web App for desktop and mobile browser
 
 Today -> Horse -> Foot History -> Prep Tomorrow -> Finish Job -> Save Verified Setup
 
+## Launch Membership
+
+FarrierOS Full Access is planned at $7.99 USD per month and unlocks every service available at launch. The local prototype uses an explicitly labeled development entitlement; no payment is collected until authenticated accounts, hosting, Checkout, and verified subscription webhooks are connected. A possible $19.99 taxable-income tier is deferred until after launch.
+
 ## Core Records
 
 - Farrier business profile

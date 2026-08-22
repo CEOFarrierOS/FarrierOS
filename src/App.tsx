@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { TOMORROW, TODAY } from "./sampleData";
 import { monthDates } from "./dateUtils";
 import { completeJob } from "./jobCompletion";
+import { formatMonthlyPrice, hasFullAccess } from "./membership";
 import { createBackup, hydrateData, loadInitialData, parseBackup, resetData, saveData } from "./storage";
 import { ActivityPing, AppData, Appointment, Foot, Horse, Screen, ServiceType, ShoeSetup } from "./types";
 
@@ -15,6 +16,7 @@ const screenLabels: Record<Screen, string> = {
   prep: "Prep Tomorrow",
   finish: "Finish Job",
   addClient: "Add Client",
+  account: "Account & Membership",
 };
 
 const mobileScreenLabels: Record<Screen, string> = {
@@ -25,6 +27,7 @@ const mobileScreenLabels: Record<Screen, string> = {
   prep: "Prep",
   finish: "Finish",
   addClient: "Add",
+  account: "Account",
 };
 
 const primaryScreens: Screen[] = ["today", "calendar", "clients", "prep", "finish"];
@@ -206,6 +209,7 @@ function App() {
     ? (data.clients.find((item) => item.id === horse.ownerClientId) ?? unassignedClient)
     : unassignedClient;
   const barn = horse ? (data.barns.find((item) => item.id === horse.barnPropertyId) ?? unassignedBarn) : unassignedBarn;
+  const fullAccess = hasFullAccess(data.membership);
 
   const todayAppointments = data.appointments
     .filter((appt) => appt.date === TODAY && appt.status !== "cancelled")
@@ -422,6 +426,10 @@ function App() {
       ...data,
       horses: data.horses.map((horseItem) => (horseItem.id === horseId ? { ...horseItem, ...patch } : horseItem)),
     });
+  }
+
+  function updateBusiness(patch: Partial<AppData["business"]>) {
+    patchData({ ...data, business: { ...data.business, ...patch } });
   }
 
   function buildHorseDraft(clientId: string, barnId: string, name = "") {
@@ -878,12 +886,22 @@ function App() {
             <p className="eyebrow">{data.business.businessName}</p>
             <h1>{screenLabels[screen]}</h1>
           </div>
-          <div className={online ? "offline-pill" : "offline-pill offline"}>
-            {online ? "Local data ready" : "Offline - changes stay on this device"}
+          <div className="topbar-actions">
+            <div className={online ? "offline-pill" : "offline-pill offline"}>
+              {online ? "Local data ready" : "Offline - changes stay on this device"}
+            </div>
+            <button
+              className={screen === "account" ? "account-button active" : "account-button"}
+              onClick={() => setScreen("account")}
+            >
+              Account
+            </button>
           </div>
         </header>
 
-        {screen === "today" && (
+        {!fullAccess && screen !== "account" && <MembershipGate onAccount={() => setScreen("account")} />}
+
+        {fullAccess && screen === "today" && (
           <TodayScreen
             appointments={todayAppointments}
             data={data}
@@ -902,7 +920,7 @@ function App() {
           />
         )}
 
-        {screen === "calendar" && (
+        {fullAccess && screen === "calendar" && (
           <CalendarScreen
             calendarView={calendarView}
             data={data}
@@ -944,7 +962,7 @@ function App() {
           />
         )}
 
-        {screen === "clients" && (
+        {fullAccess && screen === "clients" && (
           <ClientsScreen
             data={data}
             locationStatus={locationStatus}
@@ -960,7 +978,7 @@ function App() {
           />
         )}
 
-        {screen === "addClient" && (
+        {fullAccess && screen === "addClient" && (
           <AddClientScreen
             data={data}
             selectedClientId={selectedIntakeClientId}
@@ -982,7 +1000,8 @@ function App() {
           />
         )}
 
-        {screen === "horses" &&
+        {fullAccess &&
+          screen === "horses" &&
           (horse ? (
             <HorsesScreen
               data={data}
@@ -1002,7 +1021,7 @@ function App() {
             <EmptyHorsePanel onAddClient={openClientIntake} />
           ))}
 
-        {screen === "prep" && (
+        {fullAccess && screen === "prep" && (
           <PrepScreen
             data={data}
             appointments={tomorrowAppointments}
@@ -1021,7 +1040,8 @@ function App() {
           />
         )}
 
-        {screen === "finish" &&
+        {fullAccess &&
+          screen === "finish" &&
           (horse ? (
             <FinishScreen
               horse={horse}
@@ -1047,6 +1067,17 @@ function App() {
           ) : (
             <EmptyHorsePanel onAddClient={openClientIntake} />
           ))}
+
+        {screen === "account" && (
+          <AccountScreen
+            business={data.business}
+            membership={data.membership}
+            onUpdateBusiness={updateBusiness}
+            onBilling={() =>
+              setMockPreview("Live Stripe Checkout will be connected when hosting and billing credentials are ready.")
+            }
+          />
+        )}
       </main>
 
       <nav className="bottom-nav">
@@ -1070,6 +1101,121 @@ function App() {
         </div>
       )}
     </div>
+  );
+}
+
+function MembershipGate(props: { onAccount: () => void }) {
+  return (
+    <section className="membership-gate work-panel">
+      <p className="eyebrow">Membership required</p>
+      <h2>FarrierOS Full Access</h2>
+      <p>Your field records remain stored on this device. Restore membership to continue using app services.</p>
+      <button className="primary" onClick={props.onAccount}>
+        View Membership
+      </button>
+    </section>
+  );
+}
+
+function AccountScreen(props: {
+  business: AppData["business"];
+  membership: AppData["membership"];
+  onUpdateBusiness: (patch: Partial<AppData["business"]>) => void;
+  onBilling: () => void;
+}) {
+  const statusLabel =
+    props.membership.status === "development" ? "Development access" : props.membership.status.replace("_", " ");
+  return (
+    <section className="account-layout">
+      <div className="work-panel membership-card">
+        <p className="eyebrow">Membership</p>
+        <div className="section-heading">
+          <div>
+            <h2>{props.membership.planName}</h2>
+            <p className="membership-price">
+              {formatMonthlyPrice(props.membership)}
+              <span>/month</span>
+            </p>
+          </div>
+          <span className="status good">{statusLabel}</span>
+        </div>
+        <ul className="plain-list membership-features">
+          <li>Complete Today, Calendar, Clients, Horses, Prep, and Finish Job access</li>
+          <li>Four-foot verified setup history</li>
+          <li>Offline local records and JSON backups</li>
+          <li>All current FarrierOS services—no feature restrictions</li>
+        </ul>
+        {props.membership.billingProvider === "development" && (
+          <div className="billing-notice">
+            <strong>Development membership is active.</strong>
+            <p>No charge has been made. Live checkout requires the hosted backend and Stripe credentials.</p>
+          </div>
+        )}
+        <button className="primary save-button" onClick={props.onBilling}>
+          {props.membership.billingProvider === "development" ? "Preview Billing Setup" : "Manage Billing"}
+        </button>
+      </div>
+
+      <div className="work-panel">
+        <p className="eyebrow">Farrier profile</p>
+        <h2>Business details</h2>
+        <div className="form-grid">
+          <label className="search-label">
+            Business name
+            <input
+              value={props.business.businessName}
+              onChange={(event) => props.onUpdateBusiness({ businessName: event.target.value })}
+            />
+          </label>
+          <label className="search-label">
+            Farrier name
+            <input
+              value={props.business.farrierName}
+              onChange={(event) => props.onUpdateBusiness({ farrierName: event.target.value })}
+            />
+          </label>
+          <label className="search-label">
+            Email
+            <input
+              type="email"
+              value={props.business.email}
+              onChange={(event) => props.onUpdateBusiness({ email: event.target.value })}
+            />
+          </label>
+          <label className="search-label">
+            Phone
+            <input
+              type="tel"
+              value={props.business.phone}
+              onChange={(event) => props.onUpdateBusiness({ phone: event.target.value })}
+            />
+          </label>
+          <label className="search-label">
+            Base location
+            <input
+              value={props.business.baseLocation}
+              onChange={(event) => props.onUpdateBusiness({ baseLocation: event.target.value })}
+            />
+          </label>
+          <label className="search-label">
+            Default interval
+            <input
+              type="number"
+              min="1"
+              max="16"
+              value={props.business.defaultServiceIntervalWeeks}
+              onChange={(event) =>
+                props.onUpdateBusiness({ defaultServiceIntervalWeeks: Number(event.target.value) || 1 })
+              }
+            />
+          </label>
+        </div>
+        <p className="helper-text">
+          This profile is stored locally today. Account login and cloud identity will be connected with the hosted
+          backend.
+        </p>
+      </div>
+    </section>
   );
 }
 
