@@ -3,6 +3,7 @@ import { TOMORROW, TODAY } from "./sampleData";
 import { monthDates } from "./dateUtils";
 import { completeJob } from "./jobCompletion";
 import { formatMonthlyPrice, hasFullAccess } from "./membership";
+import { buildOnMyWayMessage, createSmsHref } from "./messaging";
 import { createBackup, hydrateData, loadInitialData, parseBackup, resetData, saveData } from "./storage";
 import { ActivityPing, AppData, Appointment, Foot, Horse, Screen, ServiceType, ShoeSetup } from "./types";
 
@@ -907,7 +908,6 @@ function App() {
             data={data}
             onHorse={openHorse}
             onMaps={openMaps}
-            onPreview={setMockPreview}
             onPrep={() => setScreen("prep")}
             onStart={(appointment) => {
               const firstHorseId = appointment.horseIds[0];
@@ -1224,7 +1224,6 @@ function TodayScreen(props: {
   data: AppData;
   onHorse: (horse: Horse) => void;
   onMaps: () => void;
-  onPreview: (message: string) => void;
   onPrep: () => void;
   onStart: (appointment: Appointment) => void;
   onStatus: (id: string, patch: Partial<Appointment>, message?: string) => void;
@@ -1260,6 +1259,11 @@ function TodayScreen(props: {
         </div>
         {props.appointments.map((appt) => {
           const barn = props.data.barns.find((item) => item.id === appt.barnPropertyId) ?? unassignedBarn;
+          const client = props.data.clients.find((item) => item.id === appt.clientId) ?? unassignedClient;
+          const smsHref = createSmsHref(
+            client.phone,
+            buildOnMyWayMessage(props.data.business.businessName, barn.name, appt.startTime),
+          );
           const horses = appt.horseIds
             .map((id) => props.data.horses.find((horse) => horse.id === id))
             .filter(Boolean) as Horse[];
@@ -1286,13 +1290,15 @@ function TodayScreen(props: {
                   Start Job
                 </button>
                 <button onClick={props.onMaps}>Navigate</button>
-                <button
-                  onClick={() =>
-                    props.onPreview("Mock text preview only: On my way to Willow Creek Ranch. No real SMS was sent.")
-                  }
-                >
-                  On My Way
-                </button>
+                {smsHref ? (
+                  <a className="button-link" href={smsHref}>
+                    On My Way
+                  </a>
+                ) : (
+                  <button disabled title="Add a client phone number first">
+                    On My Way
+                  </button>
+                )}
                 <button onClick={() => openManageStop(appt)}>Cancel/Reschedule</button>
                 <button onClick={() => props.onStatus(appt.id, { status: "complete" })}>Mark Complete</button>
               </div>

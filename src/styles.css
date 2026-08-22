@@ -67,6 +67,26 @@ button {
   text-wrap: balance;
 }
 
+.button-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  border: 1px solid rgba(244, 241, 232, 0.15);
+  border-radius: 8px;
+  background: #202720;
+  color: #f4f1e8;
+  padding: 0.75rem 1rem;
+  text-align: center;
+  text-decoration: none;
+}
+
+.button-link:hover,
+.button-link:focus-visible {
+  border-color: #d8b35a;
+  outline: none;
+}
+
 button:hover,
 button:focus-visible {
   border-color: #d8b35a;
