@@ -1,12 +1,12 @@
-# COIN — Client Onboard Information Form
+# COIF — Client Onboarding Information Form
 
 ## Purpose
 
-COIN gives a farrier a secure link to send to a new horse owner. The owner completes their contact, property, access, and horse information without needing a FarrierOS membership. Submitting the form creates a reviewable intake inside the sending farrier's workspace, reducing duplicate entry and onboarding calls.
+COIF gives a farrier a secure link to send to a new horse owner. The owner completes their contact, property, access, and horse information without needing a FarrierOS membership. Submitting the form creates a reviewable intake inside the sending farrier's workspace, reducing duplicate entry and onboarding calls.
 
 ## Farrier Flow
 
-1. Open Clients and choose **Create COIN Link**.
+1. Open Clients and choose **Create COIF Link**.
 2. Set an expiration date and optionally prefill the owner's name or phone number.
 3. Copy the link or open a prefilled text message.
 4. Track link state: Draft, Sent, Opened, Submitted, Imported, Expired, or Revoked.
@@ -36,4 +36,4 @@ The hosted backend validates and stores the submission, then notifies the correc
 
 ## Prototype Boundary
 
-COIN cannot safely auto-update the current local-only app because a public owner link needs hosting, a secure database, token validation, file storage, and a farrier account to receive it. It belongs in the upcoming hosting/accounts/cloud-records milestone and should be included in the first private beta.
+COIF cannot safely auto-update the current local-only app because a public owner link needs hosting, a secure database, token validation, file storage, and a farrier account to receive it. It belongs in the upcoming hosting/accounts/cloud-records milestone and should be included in the first private beta.

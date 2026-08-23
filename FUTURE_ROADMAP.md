@@ -22,7 +22,7 @@
 
 - Authenticated farrier workspaces.
 - Secure cloud records and offline synchronization.
-- COIN secure client-onboarding links, review queue, and record import.
+- COIF secure client-onboarding links, review queue, and record import.
 - Token expiration, revocation, rate limiting, and intake audit trail.
 
 ## Phase 3: Field Workflow Expansion

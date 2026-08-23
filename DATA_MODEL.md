@@ -155,7 +155,7 @@ Prototype 0 uses browser local storage with a seeded sample dataset. The model s
 - kind: safety | fit | cycle_change | access | general
 - createdAt
 
-### ClientOnboardingSubmission (COIN)
+### ClientOnboardingSubmission (COIF)
 
 - id
 - workspaceId
