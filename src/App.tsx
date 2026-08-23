@@ -1583,10 +1583,16 @@ function CalendarScreen(props: {
               <span className="offline-pill">Tap for details</span>
             </div>
             <div className="month-grid">
-              {monthDays.map((date) => (
+              {(["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const).map((day) => (
+                <span className="month-weekday" key={day}>
+                  {day}
+                </span>
+              ))}
+              {monthDays.map((date, index) => (
                 <button
                   className={props.selectedDate === date ? "month-cell active" : "month-cell"}
                   key={date}
+                  style={index === 0 ? { gridColumnStart: new Date(`${date}T12:00:00`).getDay() + 1 } : undefined}
                   onClick={() => {
                     props.setSelectedDate(date);
                     props.setScheduleOpen(false);

@@ -279,7 +279,7 @@ main {
 }
 
 .calendar-screen {
-  grid-template-columns: minmax(520px, 1.6fr) minmax(280px, 0.8fr);
+  grid-template-columns: 1fr;
 }
 
 .calendar-screen > .work-panel:first-child {
@@ -760,7 +760,7 @@ main {
 
 .week-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 0.5rem;
   margin-bottom: 1rem;
 }
@@ -770,31 +770,50 @@ main {
   display: grid;
   align-content: center;
   gap: 0.2rem;
-  min-height: 112px;
+  min-height: 78px;
+  padding: 0.5rem;
   text-align: left;
   overflow: hidden;
 }
 
 .calendar-block strong {
   color: #d8b35a;
-  font-size: 2rem;
+  font-size: 1.5rem;
 }
 
 .month-grid {
   display: grid;
-  grid-template-columns: repeat(7, minmax(48px, 1fr));
-  gap: 0.4rem;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.3rem;
   margin-bottom: 1rem;
 }
 
+.month-weekday {
+  color: #bbb3a2;
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 0.2rem;
+  text-align: center;
+  text-transform: uppercase;
+}
+
 .month-cell {
-  min-height: 82px;
-  padding: 0.55rem;
+  min-height: 34px;
+  padding: 0.1rem;
+  text-align: center;
+}
+
+.month-cell > span {
+  font-size: 0.8rem;
 }
 
 .month-cell strong {
   color: #d8b35a;
-  font-size: 1.35rem;
+  font-size: 0.78rem;
+}
+
+.month-cell small {
+  display: none;
 }
 
 .calendar-schedule-entry,
@@ -1289,7 +1308,7 @@ dd {
   }
 
   .week-grid {
-    grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+    grid-template-columns: repeat(7, minmax(0, 1fr));
   }
 
   .appointment-row,
@@ -1360,7 +1379,25 @@ dd {
 
   .week-grid,
   .month-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 0.2rem;
+  }
+
+  .calendar-block,
+  .month-cell {
+    min-width: 0;
+    padding: 0.2rem;
+  }
+
+  .calendar-block {
+    min-height: 66px;
+  }
+
+  .calendar-block span,
+  .calendar-block small,
+  .month-cell small,
+  .month-weekday {
+    font-size: 0.6rem;
   }
 
   .mini-calendar {
