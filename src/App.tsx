@@ -2784,6 +2784,7 @@ function FinishScreen(props: {
   setVerified: (verified: boolean) => void;
   onSave: () => void;
 }) {
+  const [showSetupDetails, setShowSetupDetails] = useState(false);
   return (
     <section className="screen-grid">
       <div className="work-panel wide">
@@ -2802,76 +2803,96 @@ function FinishScreen(props: {
             </button>
           ))}
         </div>
-        <div className="prep-setup-grid">
+        <div className="finish-summary-strip">
           {props.currentSetups.map((setup) => (
-            <div className="setup-tile setup-editor" key={setup.foot}>
+            <div key={setup.foot}>
               <strong>{setup.foot}</strong>
-              <label>
-                Brand
-                <input
-                  value={setup.shoeBrand}
-                  onChange={(event) => props.onSetupChange(setup.foot, { shoeBrand: event.target.value })}
-                />
-              </label>
-              <label>
-                Model
-                <input
-                  value={setup.shoeModel}
-                  onChange={(event) => props.onSetupChange(setup.foot, { shoeModel: event.target.value })}
-                />
-              </label>
-              <label>
-                Size
-                <input
-                  value={setup.shoeSize}
-                  onChange={(event) => props.onSetupChange(setup.foot, { shoeSize: event.target.value })}
-                />
-              </label>
-              <label>
-                Clips
-                <input
-                  value={setup.clips}
-                  onChange={(event) => props.onSetupChange(setup.foot, { clips: event.target.value })}
-                />
-              </label>
-              <label>
-                Pads
-                <input
-                  value={setup.pads}
-                  onChange={(event) => props.onSetupChange(setup.foot, { pads: event.target.value })}
-                />
-              </label>
-              <label>
-                Wedges
-                <input
-                  value={setup.wedges}
-                  onChange={(event) => props.onSetupChange(setup.foot, { wedges: event.target.value })}
-                />
-              </label>
-              <label>
-                Borium
-                <input
-                  value={setup.borium}
-                  onChange={(event) => props.onSetupChange(setup.foot, { borium: event.target.value })}
-                />
-              </label>
-              <label className="editor-wide">
-                Modifications
-                <textarea
-                  value={setup.modifications}
-                  onChange={(event) => props.onSetupChange(setup.foot, { modifications: event.target.value })}
-                />
-              </label>
-              <label className="editor-wide">
-                Fit notes
-                <textarea
-                  value={setup.fitNotes}
-                  onChange={(event) => props.onSetupChange(setup.foot, { fitNotes: event.target.value })}
-                />
-              </label>
+              <span>
+                {setup.shoeModel} · {setup.shoeSize}
+              </span>
             </div>
           ))}
         </div>
+        <button
+          className="setup-disclosure"
+          aria-expanded={showSetupDetails}
+          onClick={() => setShowSetupDetails((open) => !open)}
+        >
+          <span>Review or change shoe setup</span>
+          <strong>{showSetupDetails ? "Hide" : "Optional"}</strong>
+        </button>
+        {showSetupDetails && (
+          <div className="prep-setup-grid setup-editor-grid">
+            {props.currentSetups.map((setup) => (
+              <div className="setup-tile setup-editor" key={setup.foot}>
+                <strong>{setup.foot}</strong>
+                <label>
+                  Brand
+                  <input
+                    value={setup.shoeBrand}
+                    onChange={(event) => props.onSetupChange(setup.foot, { shoeBrand: event.target.value })}
+                  />
+                </label>
+                <label>
+                  Model
+                  <input
+                    value={setup.shoeModel}
+                    onChange={(event) => props.onSetupChange(setup.foot, { shoeModel: event.target.value })}
+                  />
+                </label>
+                <label>
+                  Size
+                  <input
+                    value={setup.shoeSize}
+                    onChange={(event) => props.onSetupChange(setup.foot, { shoeSize: event.target.value })}
+                  />
+                </label>
+                <label>
+                  Clips
+                  <input
+                    value={setup.clips}
+                    onChange={(event) => props.onSetupChange(setup.foot, { clips: event.target.value })}
+                  />
+                </label>
+                <label>
+                  Pads
+                  <input
+                    value={setup.pads}
+                    onChange={(event) => props.onSetupChange(setup.foot, { pads: event.target.value })}
+                  />
+                </label>
+                <label>
+                  Wedges
+                  <input
+                    value={setup.wedges}
+                    onChange={(event) => props.onSetupChange(setup.foot, { wedges: event.target.value })}
+                  />
+                </label>
+                <label>
+                  Borium
+                  <input
+                    value={setup.borium}
+                    onChange={(event) => props.onSetupChange(setup.foot, { borium: event.target.value })}
+                  />
+                </label>
+                <label className="editor-wide">
+                  Modifications
+                  <textarea
+                    value={setup.modifications}
+                    onChange={(event) => props.onSetupChange(setup.foot, { modifications: event.target.value })}
+                  />
+                </label>
+                <label className="editor-wide">
+                  Fit notes
+                  <textarea
+                    value={setup.fitNotes}
+                    onChange={(event) => props.onSetupChange(setup.foot, { fitNotes: event.target.value })}
+                  />
+                </label>
+              </div>
+            ))}
+          </div>
+        )}
         <div className="finish-controls">
           <button>Add Photo</button>
           <button>Voice Note</button>
@@ -2881,25 +2902,27 @@ function FinishScreen(props: {
           Written notes
           <textarea value={props.finishNote} onChange={(event) => props.setFinishNote(event.target.value)} />
         </label>
-        <label className="search-label">
-          What changed this cycle
-          <textarea value={props.cycleChange} onChange={(event) => props.setCycleChange(event.target.value)} />
-        </label>
+        {showSetupDetails && (
+          <label className="search-label">
+            What changed this cycle
+            <textarea value={props.cycleChange} onChange={(event) => props.setCycleChange(event.target.value)} />
+          </label>
+        )}
       </div>
       <div className="work-panel sticky-save">
-        <p className="eyebrow">Save setup</p>
-        <h2>Verified for next prep?</h2>
+        <p className="eyebrow">Complete visit</p>
+        <h2>Ready to finish?</h2>
+        <p>Records this service and calculates the next due date from {props.horse.serviceIntervalWeeks} weeks.</p>
         <label className="toggle-row">
           <input
             type="checkbox"
             checked={props.verified}
             onChange={(event) => props.setVerified(event.target.checked)}
           />
-          <span>{props.verified ? "Mark setup Verified" : "Save without verification"}</span>
+          <span>Use this setup for next prep</span>
         </label>
-        <p>Next due will be calculated from {props.horse.serviceIntervalWeeks} weeks.</p>
         <button className="primary save-button" onClick={props.onSave}>
-          {props.verified ? "Save Verified Setup" : "Save Service Record"}
+          Finish
         </button>
       </div>
     </section>

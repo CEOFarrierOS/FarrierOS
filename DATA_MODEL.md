@@ -155,6 +155,22 @@ Prototype 0 uses browser local storage with a seeded sample dataset. The model s
 - kind: safety | fit | cycle_change | access | general
 - createdAt
 
+### ClientOnboardingSubmission (COIN)
+
+- id
+- workspaceId
+- tokenHash
+- status: draft | sent | opened | submitted | imported | expired | revoked
+- expiresAt
+- ownerContact
+- propertyAndAccess
+- horseIntakes
+- messagingConsent
+- submittedAt
+- reviewedAt
+- reviewedBy
+- importedRecordIds
+
 ## Prototype Sample Data
 
 Must include:

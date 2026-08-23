@@ -18,6 +18,13 @@
 - Data export and backup.
 - Stronger photo/document placeholders.
 
+## Hosted Beta Foundation
+
+- Authenticated farrier workspaces.
+- Secure cloud records and offline synchronization.
+- COIN secure client-onboarding links, review queue, and record import.
+- Token expiration, revocation, rate limiting, and intake audit trail.
+
 ## Phase 3: Field Workflow Expansion
 
 - Faster finish-job templates.

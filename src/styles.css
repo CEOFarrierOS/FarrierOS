@@ -1159,6 +1159,48 @@ dd {
   margin: 1rem 0;
 }
 
+.finish-summary-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin: 1rem 0 0.65rem;
+}
+
+.finish-summary-strip > div {
+  display: grid;
+  gap: 0.2rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+  background: var(--surface-strong);
+  padding: 0.65rem;
+}
+
+.finish-summary-strip strong {
+  color: var(--accent);
+}
+
+.finish-summary-strip span {
+  color: var(--muted);
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
+.setup-disclosure {
+  justify-content: space-between;
+  width: 100%;
+  margin-bottom: 0.75rem;
+}
+
+.setup-disclosure strong {
+  color: var(--accent);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+}
+
+.setup-editor-grid {
+  margin-bottom: 1rem;
+}
+
 .toggle-row {
   display: flex;
   align-items: center;
@@ -1436,6 +1478,10 @@ dd {
   .modal-actions {
     display: grid;
     grid-template-columns: 1fr;
+  }
+
+  .finish-summary-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .route-number {
