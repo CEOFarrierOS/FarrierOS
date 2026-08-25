@@ -157,6 +157,7 @@ function App() {
   const [horsePendingDeleteId, setHorsePendingDeleteId] = useState<string | null>(null);
   const [collapsedClientIds, setCollapsedClientIds] = useState<string[]>([]);
   const [calendarScheduleOpen, setCalendarScheduleOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scheduleMode, setScheduleMode] = useState<"existing" | "new">("existing");
   const [scheduleClientSearch, setScheduleClientSearch] = useState("");
   const [scheduleClientId, setScheduleClientId] = useState("");
@@ -299,6 +300,12 @@ function App() {
     setSelectedIntakeClientId(clientId);
     setScreen("addClient");
     setMockPreview("Client draft saved.");
+  }
+
+  function openMobileScreen(nextScreen: Screen) {
+    setMobileMenuOpen(false);
+    if (nextScreen === "finish" && horse) openFinish(horse.id);
+    else setScreen(nextScreen);
   }
 
   function updateClient(clientId: string, patch: Partial<AppData["clients"][number]>) {
@@ -926,11 +933,66 @@ function App() {
         </button>
       </aside>
 
+      {mobileMenuOpen && (
+        <div className="mobile-menu-layer">
+          <button
+            aria-label="Close navigation menu"
+            className="mobile-menu-scrim"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+          <aside aria-label="Mobile navigation" className="mobile-nav-drawer">
+            <div className="mobile-drawer-heading">
+              <div className="brand-block">
+                <div className="brand-mark">F</div>
+                <div>
+                  <strong>FarrierOS</strong>
+                  <span>Navigation</span>
+                </div>
+              </div>
+              <button aria-label="Close navigation menu" className="icon-close" onClick={() => setMobileMenuOpen(false)}>
+                ×
+              </button>
+            </div>
+            <nav>
+              {primaryScreens.map((key) => (
+                <button className={screen === key ? "active" : ""} key={key} onClick={() => openMobileScreen(key)}>
+                  {screenLabels[key]}
+                </button>
+              ))}
+            </nav>
+            <button
+              className="add-client-button"
+              onClick={() => {
+                setMobileMenuOpen(false);
+                openClientIntake();
+              }}
+            >
+              Add Client
+            </button>
+            <button className={screen === "account" ? "active" : ""} onClick={() => openMobileScreen("account")}>
+              Account & Membership
+            </button>
+          </aside>
+        </div>
+      )}
+
       <main>
         <header className="topbar">
-          <div>
+          <div className="topbar-title">
+            <button
+              aria-expanded={mobileMenuOpen}
+              aria-label="Open navigation menu"
+              className="mobile-menu-button"
+              onClick={() => setMobileMenuOpen(true)}
+            >
+              <span />
+              <span />
+              <span />
+            </button>
+            <div>
             <p className="eyebrow">{data.business.businessName}</p>
             <h1>{screenLabels[screen]}</h1>
+            </div>
           </div>
           <div className="topbar-actions">
             <div className={online ? "offline-pill" : "offline-pill offline"}>
