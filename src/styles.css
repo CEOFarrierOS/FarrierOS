@@ -566,6 +566,29 @@ main {
   display: none;
 }
 
+.contact-import-panel {
+  display: grid;
+  gap: 0.75rem;
+  border: 1px solid rgba(216, 179, 90, 0.38);
+  border-radius: 10px;
+  background: rgba(216, 179, 90, 0.07);
+  margin-bottom: 1.25rem;
+  padding: 1rem;
+}
+
+.contact-import-panel h3,
+.contact-import-panel p {
+  margin-bottom: 0.35rem;
+}
+
+.contact-file-button {
+  cursor: pointer;
+}
+
+.contact-file-button input {
+  display: none;
+}
+
 .full-width {
   width: 100%;
 }

@@ -16,6 +16,7 @@ import {
 } from "./cloud/auth";
 import { getSupabaseClient } from "./cloud/supabase";
 import { integrationStatus } from "./config";
+import { ContactImportDraft, normalizePhone, parseVCards } from "./contactImport";
 
 const feet: Foot[] = ["LF", "RF", "LH", "RH"];
 
@@ -300,6 +301,66 @@ function App() {
     setSelectedIntakeClientId(clientId);
     setScreen("addClient");
     setMockPreview("Client draft saved.");
+  }
+
+  function importContactDrafts(drafts: ContactImportDraft[]) {
+    const existingPhones = new Set(data.clients.map((client) => normalizePhone(client.phone)).filter(Boolean));
+    const imported: AppData["clients"] = [];
+    let skipped = 0;
+    drafts.forEach((draft) => {
+      const phoneKey = normalizePhone(draft.phone);
+      if (phoneKey && (existingPhones.has(phoneKey) || imported.some((client) => normalizePhone(client.phone) === phoneKey))) {
+        skipped += 1;
+        return;
+      }
+      const parts = draft.name.trim().split(/\s+/);
+      const firstName = parts.shift() ?? "";
+      const lastName = parts.join(" ");
+      imported.push({
+        id: makeId("client"), firstName, lastName, name: draft.name.trim() || "Imported Client",
+        phone: draft.phone, email: "", address: draft.address, locationSource: draft.address ? "manual" : "none",
+        notes: "Imported from device contacts.", horseIds: [], barnIds: [],
+      });
+      if (phoneKey) existingPhones.add(phoneKey);
+    });
+    if (!imported.length) {
+      setMockPreview(skipped ? "No contacts imported; all selected phone numbers already exist." : "No usable contacts were selected.");
+      return;
+    }
+    const retained = data.clients.filter((client) => !(client.name === "New Client" && !client.phone && !client.address && client.horseIds.length === 0));
+    patchData({ ...data, clients: [...retained, ...imported] });
+    setSelectedIntakeClientId(imported[0].id);
+    setScreen("addClient");
+    setMockPreview(`${imported.length} client${imported.length === 1 ? "" : "s"} imported${skipped ? `; ${skipped} duplicate${skipped === 1 ? "" : "s"} skipped` : ""}.`);
+  }
+
+  async function pickDeviceContacts() {
+    type ContactAddress = { addressLine?: string[]; city?: string; region?: string; postalCode?: string; country?: string };
+    type WebContact = { name?: string[]; tel?: string[]; address?: ContactAddress[] };
+    const contactsApi = (navigator as Navigator & { contacts?: { select: (fields: string[], options: { multiple: boolean }) => Promise<WebContact[]> } }).contacts;
+    if (!contactsApi) {
+      setMockPreview("Direct contact selection is not supported in this browser. Use the multi-contact vCard option instead.");
+      return;
+    }
+    try {
+      const selected = await contactsApi.select(["name", "tel", "address"], { multiple: true });
+      importContactDrafts(selected.map((contact) => ({
+        name: contact.name?.[0] ?? "Imported Client",
+        phone: contact.tel?.[0] ?? "",
+        address: contact.address?.[0]
+          ? [...(contact.address[0].addressLine ?? []), contact.address[0].city, contact.address[0].region, contact.address[0].postalCode, contact.address[0].country].filter(Boolean).join(", ")
+          : "",
+      })));
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      setMockPreview("The contacts picker could not be opened. You can still import a multi-contact vCard file.");
+    }
+  }
+
+  async function importContactFile(file: File | undefined) {
+    if (!file) return;
+    try { importContactDrafts(parseVCards(await file.text())); }
+    catch { setMockPreview("That file could not be read as a vCard contact export."); }
   }
 
   function openMobileScreen(nextScreen: Screen) {
@@ -1115,6 +1176,9 @@ function App() {
               updateClient(clientId, { locationSource: "browser" });
               captureCurrentLocation();
             }}
+            directContactPickerSupported={"contacts" in navigator}
+            onPickContacts={pickDeviceContacts}
+            onImportVCard={importContactFile}
           />
         )}
 
@@ -2429,6 +2493,32 @@ function TeamSharePanel(props: { data: AppData }) {
   );
 }
 
+function ContactImportPanel(props: {
+  directSupported: boolean;
+  onPick: () => void;
+  onVCard: (file: File | undefined) => void;
+}) {
+  return (
+    <div className="contact-import-panel">
+      <div>
+        <p className="eyebrow">Bulk onboarding</p>
+        <h3>Import Multiple Contacts</h3>
+        <p className="helper-text">Select many people at once. FarrierOS imports names, primary phone numbers, and available addresses into separate client portfolios.</p>
+      </div>
+      {props.directSupported ? (
+        <button className="primary" onClick={props.onPick}>Choose Multiple Contacts</button>
+      ) : (
+        <p className="status">Direct contact access is unavailable in this browser. Use a multi-contact vCard export.</p>
+      )}
+      <label className="button-link contact-file-button">
+        Import Multi-Contact .VCF
+        <input accept=".vcf,text/vcard,text/x-vcard" type="file" onChange={(event) => props.onVCard(event.target.files?.[0])} />
+      </label>
+      <small>Only contacts you deliberately select or import are added. Matching phone numbers are skipped as duplicates.</small>
+    </div>
+  );
+}
+
 function AddClientScreen(props: {
   data: AppData;
   selectedClientId: string | null;
@@ -2444,6 +2534,9 @@ function AddClientScreen(props: {
   onCancelRemoveHorse: () => void;
   onConfirmRemoveHorse: (horseId: string) => void;
   onUseLocation: (clientId: string) => void;
+  directContactPickerSupported: boolean;
+  onPickContacts: () => void;
+  onImportVCard: (file: File | undefined) => void;
 }) {
   const selectedClient =
     props.data.clients.find((client) => client.id === props.selectedClientId) ?? props.data.clients[0];
@@ -2460,6 +2553,7 @@ function AddClientScreen(props: {
     return (
       <section className="work-panel full-width">
         <h2>Add Client</h2>
+        <ContactImportPanel directSupported={props.directContactPickerSupported} onPick={props.onPickContacts} onVCard={props.onImportVCard} />
         <button className="primary" onClick={props.onNewClient}>
           Start Client Draft
         </button>
@@ -2472,6 +2566,7 @@ function AddClientScreen(props: {
   return (
     <section className="intake-layout">
       <div className="work-panel intake-main">
+        <ContactImportPanel directSupported={props.directContactPickerSupported} onPick={props.onPickContacts} onVCard={props.onImportVCard} />
         <div className="section-heading">
           <div>
             <p className="eyebrow">Client intake</p>
