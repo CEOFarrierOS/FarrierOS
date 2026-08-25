@@ -34,6 +34,11 @@ Safe values to provide:
 - Product ID beginning with `prod_`
 - Monthly price ID beginning with `price_`
 
+Current sandbox catalog:
+
+- Product ID: `prod_V8dccwmIIuxtbR`
+- Monthly price ID: `price_1U8MLGFu9lXqeICDSvx2qZny`
+
 Do not paste `sk_` keys or webhook secrets here. Those will be entered directly into protected server/hosting settings when the billing backend is ready.
 
 ## Vercel — Needed for the Private Beta URL
