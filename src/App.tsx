@@ -30,17 +30,6 @@ const screenLabels: Record<Screen, string> = {
   account: "Account & Membership",
 };
 
-const mobileScreenLabels: Record<Screen, string> = {
-  today: "Today",
-  calendar: "Cal",
-  clients: "Portfolio",
-  horses: "Horses",
-  prep: "Prep",
-  finish: "Finish",
-  addClient: "Add",
-  account: "Account",
-};
-
 const primaryScreens: Screen[] = ["today", "calendar", "clients", "prep", "finish"];
 
 const serviceLabels: Record<ServiceType, string> = {
@@ -985,9 +974,8 @@ function App() {
               className="mobile-menu-button"
               onClick={() => setMobileMenuOpen(true)}
             >
-              <span />
-              <span />
-              <span />
+              <span aria-hidden="true" className="mobile-menu-icon">☰</span>
+              <span>Menu</span>
             </button>
             <div>
             <p className="eyebrow">{data.business.businessName}</p>
@@ -1191,18 +1179,6 @@ function App() {
           />
         )}
       </main>
-
-      <nav className="bottom-nav">
-        {primaryScreens.map((key) => (
-          <button
-            className={screen === key ? "active" : ""}
-            key={key}
-            onClick={() => (key === "finish" && horse ? openFinish(horse.id) : setScreen(key))}
-          >
-            {mobileScreenLabels[key]}
-          </button>
-        ))}
-      </nav>
 
       {mockPreview && (
         <div className="toast" role="status">

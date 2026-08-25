@@ -214,7 +214,6 @@ small {
 
 .active,
 .nav-rail button.active,
-.bottom-nav button.active,
 .segmented button.active {
   background: #d8b35a;
   color: #101412;
@@ -1234,10 +1233,6 @@ dd {
   top: 1rem;
 }
 
-.bottom-nav {
-  display: none;
-}
-
 .topbar-actions {
   display: flex;
   align-items: center;
@@ -1390,21 +1385,26 @@ dd {
   }
 
   .mobile-menu-button {
-    display: grid;
-    flex: 0 0 44px;
-    gap: 4px;
-    align-content: center;
-    justify-items: stretch;
-    width: 44px;
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    min-width: 84px;
     height: 44px;
-    padding: 0 11px;
+    border: 2px solid #d8b35a;
+    background: #d8b35a;
+    color: #101412;
+    padding: 0 0.7rem;
+    font-size: 0.82rem;
+    font-weight: 900;
+    text-transform: uppercase;
   }
 
-  .mobile-menu-button span {
-    display: block;
-    height: 2px;
-    border-radius: 999px;
-    background: currentColor;
+  .mobile-menu-icon {
+    display: inline;
+    font-size: 1.5rem;
+    line-height: 1;
   }
 
   .mobile-menu-layer {
@@ -1462,7 +1462,7 @@ dd {
   }
 
   main {
-    padding: 1rem 1rem 6.75rem;
+    padding: 1rem 1rem 2rem;
   }
 
   .screen-grid,
@@ -1487,30 +1487,8 @@ dd {
     width: 100%;
   }
 
-  .bottom-nav {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 10;
-    display: grid;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-    gap: 0.25rem;
-    border-top: 1px solid rgba(244, 241, 232, 0.14);
-    background: #101412;
-    padding: 0.35rem;
-  }
-
-  .bottom-nav button {
-    min-height: 56px;
-    padding: 0.3rem 0.2rem;
-    font-size: 0.66rem;
-    line-height: 1.1;
-    text-wrap: balance;
-  }
-
   .toast {
-    bottom: 5.25rem;
+    bottom: 1rem;
   }
 }
 
