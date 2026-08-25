@@ -1,3 +1,4 @@
+import { emptyData } from "./emptyData";
 import { sampleData } from "./sampleData";
 import { AppData } from "./types";
 
@@ -9,12 +10,43 @@ const DATA_KEY = "current";
 
 function mergeWithDefaults(saved: AppData): AppData {
   return {
-    ...sampleData,
+    ...emptyData,
     ...saved,
-    membership: saved.membership ?? sampleData.membership,
-    collaborationMembers: saved.collaborationMembers ?? sampleData.collaborationMembers,
-    activityPings: saved.activityPings ?? sampleData.activityPings,
-    appointments: mergeById(sampleData.appointments, saved.appointments ?? []),
+    business: { ...emptyData.business, ...saved.business },
+    membership: saved.membership ?? emptyData.membership,
+    collaborationMembers: saved.collaborationMembers ?? [],
+    activityPings: saved.activityPings ?? [],
+    clients: saved.clients ?? [],
+    barns: saved.barns ?? [],
+    horses: saved.horses ?? [],
+    footRecords: saved.footRecords ?? [],
+    shoeSetups: saved.shoeSetups ?? [],
+    serviceRecords: saved.serviceRecords ?? [],
+    appointments: saved.appointments ?? [],
+    photos: saved.photos ?? [],
+  };
+}
+
+function removeBundledDemoData(saved: AppData): AppData {
+  const clean = mergeWithDefaults(saved);
+  const removeSeedIds = <T extends { id: string }>(items: T[], seeds: T[]) => {
+    const seedIds = new Set(seeds.map((item) => item.id));
+    return items.filter((item) => !seedIds.has(item.id));
+  };
+
+  return {
+    ...clean,
+    business: clean.business.id === sampleData.business.id ? emptyData.business : clean.business,
+    collaborationMembers: removeSeedIds(clean.collaborationMembers, sampleData.collaborationMembers),
+    activityPings: removeSeedIds(clean.activityPings, sampleData.activityPings),
+    clients: removeSeedIds(clean.clients, sampleData.clients),
+    barns: removeSeedIds(clean.barns, sampleData.barns),
+    horses: removeSeedIds(clean.horses, sampleData.horses),
+    footRecords: removeSeedIds(clean.footRecords, sampleData.footRecords),
+    shoeSetups: removeSeedIds(clean.shoeSetups, sampleData.shoeSetups),
+    serviceRecords: removeSeedIds(clean.serviceRecords, sampleData.serviceRecords),
+    appointments: removeSeedIds(clean.appointments, sampleData.appointments),
+    photos: removeSeedIds(clean.photos, sampleData.photos),
   };
 }
 
@@ -22,7 +54,7 @@ function readLegacyData(): AppData | null {
   const raw = localStorage.getItem(LEGACY_STORAGE_KEY);
   if (!raw) return null;
   try {
-    return mergeWithDefaults(JSON.parse(raw) as AppData);
+    return removeBundledDemoData(JSON.parse(raw) as AppData);
   } catch {
     return null;
   }
@@ -44,14 +76,14 @@ async function readIndexedData() {
   return new Promise<AppData | null>((resolve, reject) => {
     const transaction = db.transaction(STORE_NAME, "readonly");
     const request = transaction.objectStore(STORE_NAME).get(DATA_KEY);
-    request.onsuccess = () => resolve(request.result ? mergeWithDefaults(request.result as AppData) : null);
+    request.onsuccess = () => resolve(request.result ? removeBundledDemoData(request.result as AppData) : null);
     request.onerror = () => reject(request.error);
     transaction.oncomplete = () => db.close();
   });
 }
 
 export function loadInitialData() {
-  return readLegacyData() ?? sampleData;
+  return readLegacyData() ?? emptyData;
 }
 
 export async function hydrateData() {
@@ -59,12 +91,12 @@ export async function hydrateData() {
     const indexed = await readIndexedData();
     if (indexed) return indexed;
     const legacy = readLegacyData();
-    const initial = legacy ?? sampleData;
+    const initial = legacy ?? emptyData;
     await saveData(initial);
     if (legacy) localStorage.removeItem(LEGACY_STORAGE_KEY);
     return initial;
   } catch {
-    return readLegacyData() ?? sampleData;
+    return readLegacyData() ?? emptyData;
   }
 }
 
@@ -89,8 +121,8 @@ export async function resetData() {
     transaction.onerror = () => reject(transaction.error);
   });
   db.close();
-  await saveData(sampleData);
-  return sampleData;
+  await saveData(emptyData);
+  return emptyData;
 }
 
 export function createBackup(data: AppData) {
@@ -107,9 +139,4 @@ export function parseBackup(raw: string) {
     throw new Error("This file is not a valid FarrierOS backup.");
   }
   return mergeWithDefaults(parsed.data);
-}
-
-function mergeById<T extends { id: string }>(base: T[], saved: T[]) {
-  const savedIds = new Set(saved.map((item) => item.id));
-  return [...saved, ...base.filter((item) => !savedIds.has(item.id))];
 }

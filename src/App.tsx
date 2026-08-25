@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Session } from "@supabase/supabase-js";
-import { TOMORROW, TODAY } from "./sampleData";
-import { monthDates } from "./dateUtils";
+import { monthDates, TOMORROW, TODAY } from "./dateUtils";
 import { completeJob } from "./jobCompletion";
 import { formatMonthlyPrice, hasFullAccess } from "./membership";
 import { buildOnMyWayMessage, createSmsHref } from "./messaging";
@@ -140,15 +139,15 @@ function App() {
   const [authReady, setAuthReady] = useState(false);
   const [workspace, setWorkspace] = useState<{ id: string; name: string; role: string } | null>(null);
   const [screen, setScreen] = useState<Screen>("today");
-  const [selectedHorseId, setSelectedHorseId] = useState("horse-fluffy");
+  const [selectedHorseId, setSelectedHorseId] = useState("");
   const [selectedFoot, setSelectedFoot] = useState<Foot | null>(null);
   const [calendarView, setCalendarView] = useState<"day" | "week" | "month">("day");
   const [selectedCalendarDate, setSelectedCalendarDate] = useState(TODAY);
   const [mockPreview, setMockPreview] = useState("");
   const [locationStatus, setLocationStatus] = useState("Manual address ready.");
   const [finishType, setFinishType] = useState<ServiceType>("full_set");
-  const [finishNote, setFinishNote] = useState("RF still wants lateral branch support. Setup verified for next cycle.");
-  const [cycleChange, setCycleChange] = useState("Kept RF rim pad. No major changes to hinds.");
+  const [finishNote, setFinishNote] = useState("");
+  const [cycleChange, setCycleChange] = useState("");
   const [verified, setVerified] = useState(true);
   const [activeAppointmentId, setActiveAppointmentId] = useState<string | null>(null);
   const [finishSetups, setFinishSetups] = useState<Partial<Record<Foot, ShoeSetup>>>({});
@@ -160,8 +159,8 @@ function App() {
   const [calendarScheduleOpen, setCalendarScheduleOpen] = useState(false);
   const [scheduleMode, setScheduleMode] = useState<"existing" | "new">("existing");
   const [scheduleClientSearch, setScheduleClientSearch] = useState("");
-  const [scheduleClientId, setScheduleClientId] = useState("client-sarah");
-  const [scheduleHorseIds, setScheduleHorseIds] = useState<string[]>(["horse-fluffy"]);
+  const [scheduleClientId, setScheduleClientId] = useState("");
+  const [scheduleHorseIds, setScheduleHorseIds] = useState<string[]>([]);
   const [scheduleDate, setScheduleDate] = useState(TODAY);
   const [scheduleTime, setScheduleTime] = useState("09:00");
   const [sendConfirmationSms, setSendConfirmationSms] = useState(false);
@@ -917,10 +916,13 @@ function App() {
           className="ghost-button"
           onClick={async () => {
             setData(await resetData());
-            setMockPreview("Sample data reset.");
+            setSelectedHorseId("");
+            setScheduleClientId("");
+            setScheduleHorseIds([]);
+            setMockPreview("Workspace cleared.");
           }}
         >
-          Reset Demo Data
+          Clear Local Workspace
         </button>
       </aside>
 
@@ -1620,7 +1622,7 @@ function EmptyHorsePanel(props: { onAddClient: () => void }) {
           <h2>No horse is selected</h2>
         </div>
       </div>
-      <p className="helper-text">Add a client and horse, or reset the demo data to restore Fluffy.</p>
+      <p className="helper-text">Add a client and horse to begin building your records.</p>
       <button className="primary" onClick={props.onAddClient}>
         Add Client
       </button>
