@@ -1425,6 +1425,47 @@ function TodayScreen(props: {
   const [confirmCancel, setConfirmCancel] = useState(false);
   const manageAppointment = props.appointments.find((appt) => appt.id === manageAppointmentId) ?? null;
   const quickDates = Array.from({ length: 30 }, (_, index) => addDays(TODAY, index));
+  const tomorrowHorseIds = new Set(
+    props.data.appointments
+      .filter((appointment) => appointment.date === TOMORROW && appointment.status !== "cancelled")
+      .flatMap((appointment) => appointment.horseIds),
+  );
+  const inventoryCounts = new Map<string, number>();
+
+  props.data.horses
+    .filter((horse) => tomorrowHorseIds.has(horse.id))
+    .forEach((horse) => {
+      feet.forEach((foot) => {
+        const record = props.data.footRecords.find((item) => item.id === horse.footRecordIds[foot]);
+        const setup = record
+          ? props.data.shoeSetups.find((item) => item.id === record.currentSetupId)
+          : undefined;
+        if (!setup) return;
+
+        const shoeParts = [setup.shoeBrand, setup.shoeModel]
+          .map((part) => part.trim())
+          .filter((part) => part && part.toUpperCase() !== "TBD");
+        const size = setup.shoeSize.trim();
+        if (shoeParts.length) {
+          const item = `${shoeParts.join(" ")}${size && size.toUpperCase() !== "TBD" ? `, size ${size}` : ""}`;
+          inventoryCounts.set(item, (inventoryCounts.get(item) ?? 0) + 1);
+        }
+        [
+          ["Pads", setup.pads],
+          ["Wedges", setup.wedges],
+          ["Borium", setup.borium],
+        ].forEach(([label, value]) => {
+          const detail = value.trim();
+          if (!detail || detail.toLowerCase() === "none" || detail.toUpperCase() === "TBD") return;
+          const item = `${label}: ${detail}`;
+          inventoryCounts.set(item, (inventoryCounts.get(item) ?? 0) + 1);
+        });
+      });
+    });
+
+  const requiredInventory = Array.from(inventoryCounts.entries()).map(([item, quantity]) =>
+    quantity > 1 ? `${quantity} × ${item}` : item,
+  );
 
   function openManageStop(appt: Appointment) {
     setManageAppointmentId(appt.id);
@@ -1500,13 +1541,16 @@ function TodayScreen(props: {
       <div className="work-panel">
         <p className="eyebrow">Field inventory</p>
         <h2>Tomorrow's Required Inventory</h2>
-        <p className="helper-text">Based on previous visits.</p>
-        <ul className="plain-list">
-          <li>Kerckhaert SX-8 Front, size 1</li>
-          <li>Leather rim pad stock</li>
-          <li>Small heel-dot borium</li>
-          <li>Low stand for fronts</li>
-        </ul>
+        <p className="helper-text">Calculated from tomorrow's scheduled horses and their saved setups.</p>
+        {requiredInventory.length ? (
+          <ul className="plain-list">
+            {requiredInventory.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        ) : (
+          <p className="empty-state">No inventory requirements yet. Schedule tomorrow's stops and save horse setups to build this list.</p>
+        )}
       </div>
       {manageAppointment && (
         <div className="modal-scrim" role="presentation" onMouseDown={closeManageStop}>
