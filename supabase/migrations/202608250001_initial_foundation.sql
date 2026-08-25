@@ -1,37 +1,39 @@
 create extension if not exists pgcrypto;
 
-create table public.profiles (
+do $farrieros_tables$
+begin
+execute 'create ' || $table$table public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   full_name text not null default '',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
-);
+); $table$;
 
-create table public.workspaces (
+execute 'create ' || $table$table public.workspaces (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   created_by uuid not null references auth.users(id),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
-);
+); $table$;
 
-create table public.workspace_members (
+execute 'create ' || $table$table public.workspace_members (
   workspace_id uuid not null references public.workspaces(id) on delete cascade,
   user_id uuid not null references auth.users(id) on delete cascade,
   role text not null check (role in ('owner', 'business_partner', 'apprentice')),
   created_at timestamptz not null default now(),
   primary key (workspace_id, user_id)
-);
+); $table$;
 
-create table public.workspace_state (
+execute 'create ' || $table$table public.workspace_state (
   workspace_id uuid primary key references public.workspaces(id) on delete cascade,
   data jsonb not null default '{}'::jsonb,
   version bigint not null default 1,
   updated_at timestamptz not null default now(),
   updated_by uuid references auth.users(id)
-);
+); $table$;
 
-create table public.coif_links (
+execute 'create ' || $table$table public.coif_links (
   id uuid primary key default gen_random_uuid(),
   workspace_id uuid not null references public.workspaces(id) on delete cascade,
   created_by uuid not null references auth.users(id),
@@ -42,9 +44,9 @@ create table public.coif_links (
   expires_at timestamptz not null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
-);
+); $table$;
 
-create table public.coif_submissions (
+execute 'create ' || $table$table public.coif_submissions (
   id uuid primary key default gen_random_uuid(),
   link_id uuid not null unique references public.coif_links(id) on delete cascade,
   workspace_id uuid not null references public.workspaces(id) on delete cascade,
@@ -56,7 +58,9 @@ create table public.coif_submissions (
   reviewed_at timestamptz,
   reviewed_by uuid references auth.users(id),
   imported_record_ids jsonb not null default '[]'::jsonb
-);
+); $table$;
+end;
+$farrieros_tables$;
 
 create or replace function public.is_workspace_member(target_workspace_id uuid)
 returns boolean
@@ -141,4 +145,3 @@ comment on column public.coif_links.token_hash is
   'Store only a SHA-256 hash. Plain link tokens must never be persisted.';
 comment on table public.coif_submissions is
   'Public submission must go through a rate-limited Edge Function that validates the link token. There is intentionally no anonymous insert policy.';
-
