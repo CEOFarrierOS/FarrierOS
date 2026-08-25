@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Session } from "@supabase/supabase-js";
 import { TOMORROW, TODAY } from "./sampleData";
 import { monthDates } from "./dateUtils";
 import { completeJob } from "./jobCompletion";
@@ -6,6 +7,16 @@ import { formatMonthlyPrice, hasFullAccess } from "./membership";
 import { buildOnMyWayMessage, createSmsHref } from "./messaging";
 import { createBackup, hydrateData, loadInitialData, parseBackup, resetData, saveData } from "./storage";
 import { ActivityPing, AppData, Appointment, Foot, Horse, Screen, ServiceType, ShoeSetup } from "./types";
+import {
+  getCurrentSession,
+  getCurrentWorkspace,
+  registerFarrier,
+  sendPasswordReset,
+  signInFarrier,
+  signOutFarrier,
+} from "./cloud/auth";
+import { getSupabaseClient } from "./cloud/supabase";
+import { integrationStatus } from "./config";
 
 const feet: Foot[] = ["LF", "RF", "LH", "RH"];
 
@@ -125,6 +136,9 @@ function App() {
   const [data, setData] = useState<AppData>(() => loadInitialData());
   const [storageReady, setStorageReady] = useState(false);
   const [online, setOnline] = useState(() => navigator.onLine);
+  const [session, setSession] = useState<Session | null>(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [workspace, setWorkspace] = useState<{ id: string; name: string; role: string } | null>(null);
   const [screen, setScreen] = useState<Screen>("today");
   const [selectedHorseId, setSelectedHorseId] = useState("horse-fluffy");
   const [selectedFoot, setSelectedFoot] = useState<Foot | null>(null);
@@ -166,6 +180,35 @@ function App() {
       setStorageReady(true);
     });
   }, []);
+
+  useEffect(() => {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      setAuthReady(true);
+      return;
+    }
+
+    getCurrentSession()
+      .then(setSession)
+      .catch((error) => setMockPreview(error instanceof Error ? error.message : "Could not check account session."))
+      .finally(() => setAuthReady(true));
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession);
+      setAuthReady(true);
+    });
+    return () => listener.subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!session) {
+      setWorkspace(null);
+      return;
+    }
+    getCurrentWorkspace()
+      .then(setWorkspace)
+      .catch((error) => setMockPreview(error instanceof Error ? error.message : "Could not load workspace."));
+  }, [session]);
 
   useEffect(() => {
     const update = () => setOnline(navigator.onLine);
@@ -1072,7 +1115,12 @@ function App() {
           <AccountScreen
             business={data.business}
             membership={data.membership}
+            configured={integrationStatus.supabase}
+            authReady={authReady}
+            session={session}
+            workspace={workspace}
             onUpdateBusiness={updateBusiness}
+            onMessage={setMockPreview}
             onBilling={() =>
               setMockPreview("Live Stripe Checkout will be connected when hosting and billing credentials are ready.")
             }
@@ -1120,13 +1168,157 @@ function MembershipGate(props: { onAccount: () => void }) {
 function AccountScreen(props: {
   business: AppData["business"];
   membership: AppData["membership"];
+  configured: boolean;
+  authReady: boolean;
+  session: Session | null;
+  workspace: { id: string; name: string; role: string } | null;
   onUpdateBusiness: (patch: Partial<AppData["business"]>) => void;
+  onMessage: (message: string) => void;
   onBilling: () => void;
 }) {
+  const [authMode, setAuthMode] = useState<"signin" | "register">("signin");
+  const [fullName, setFullName] = useState(props.business.farrierName);
+  const [email, setEmail] = useState(props.business.email);
+  const [password, setPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const statusLabel =
     props.membership.status === "development" ? "Development access" : props.membership.status.replace("_", " ");
+
+  async function submitAuth(event: React.FormEvent) {
+    event.preventDefault();
+    setSubmitting(true);
+    try {
+      if (authMode === "register") {
+        const result = await registerFarrier(email.trim(), password, fullName.trim());
+        props.onMessage(
+          result.session
+            ? "FarrierOS account created and signed in."
+            : "Account created. Check your email to confirm your FarrierOS account.",
+        );
+      } else {
+        await signInFarrier(email.trim(), password);
+        props.onMessage("Signed in to FarrierOS.");
+      }
+      setPassword("");
+    } catch (error) {
+      props.onMessage(error instanceof Error ? error.message : "Account request failed.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   return (
     <section className="account-layout">
+      <div className="work-panel account-auth-card">
+        <p className="eyebrow">FarrierOS account</p>
+        {!props.configured ? (
+          <div className="billing-notice">
+            <strong>Cloud accounts are not configured on this device.</strong>
+            <p>Local records remain available and unchanged.</p>
+          </div>
+        ) : !props.authReady ? (
+          <p className="helper-text">Checking your account…</p>
+        ) : props.session ? (
+          <div className="signed-in-summary">
+            <span className="status good">Signed in</span>
+            <h2>{props.workspace?.name ?? "Preparing your workspace…"}</h2>
+            <p>{props.session.user.email}</p>
+            <dl className="detail-list compact-details">
+              <div>
+                <dt>Workspace role</dt>
+                <dd>{props.workspace?.role?.replace("_", " ") ?? "Loading"}</dd>
+              </div>
+              <div>
+                <dt>Cloud records</dt>
+                <dd>Ready for reviewed import</dd>
+              </div>
+            </dl>
+            <button
+              className="ghost-button"
+              onClick={async () => {
+                try {
+                  await signOutFarrier();
+                  props.onMessage("Signed out. Local records remain on this device.");
+                } catch (error) {
+                  props.onMessage(error instanceof Error ? error.message : "Could not sign out.");
+                }
+              }}
+            >
+              Sign Out
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="segmented auth-segmented">
+              <button className={authMode === "signin" ? "active" : ""} onClick={() => setAuthMode("signin")}>
+                Sign In
+              </button>
+              <button className={authMode === "register" ? "active" : ""} onClick={() => setAuthMode("register")}>
+                Create Account
+              </button>
+            </div>
+            <form className="auth-form" onSubmit={submitAuth}>
+              {authMode === "register" && (
+                <label className="search-label">
+                  Farrier name
+                  <input
+                    required
+                    autoComplete="name"
+                    value={fullName}
+                    onChange={(event) => setFullName(event.target.value)}
+                  />
+                </label>
+              )}
+              <label className="search-label">
+                Email
+                <input
+                  required
+                  type="email"
+                  autoComplete="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                />
+              </label>
+              <label className="search-label">
+                Password
+                <input
+                  required
+                  minLength={8}
+                  type="password"
+                  autoComplete={authMode === "register" ? "new-password" : "current-password"}
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                />
+              </label>
+              <button className="primary save-button" disabled={submitting} type="submit">
+                {submitting ? "Please wait…" : authMode === "register" ? "Create FarrierOS Account" : "Sign In"}
+              </button>
+            </form>
+            {authMode === "signin" && (
+              <button
+                className="text-action"
+                type="button"
+                onClick={async () => {
+                  if (!email.trim()) {
+                    props.onMessage("Enter your email address first.");
+                    return;
+                  }
+                  try {
+                    await sendPasswordReset(email.trim());
+                    props.onMessage("Password reset email sent.");
+                  } catch (error) {
+                    props.onMessage(error instanceof Error ? error.message : "Could not send password reset.");
+                  }
+                }}
+              >
+                Forgot password?
+              </button>
+            )}
+            <p className="helper-text">Signing in does not upload this device’s local records automatically.</p>
+          </>
+        )}
+      </div>
+
       <div className="work-panel membership-card">
         <p className="eyebrow">Membership</p>
         <div className="section-heading">
@@ -1210,10 +1402,7 @@ function AccountScreen(props: {
             />
           </label>
         </div>
-        <p className="helper-text">
-          This profile is stored locally today. Account login and cloud identity will be connected with the hosted
-          backend.
-        </p>
+        <p className="helper-text">Profile edits remain local until you review and approve the first cloud import.</p>
       </div>
     </section>
   );

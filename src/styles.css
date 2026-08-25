@@ -1244,6 +1244,47 @@ dd {
   gap: 1rem;
 }
 
+.account-auth-card {
+  grid-column: 1 / -1;
+}
+
+.auth-segmented {
+  margin-bottom: 1rem;
+  max-width: 480px;
+}
+
+.auth-form {
+  display: grid;
+  gap: 0.85rem;
+  max-width: 560px;
+}
+
+.signed-in-summary {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.signed-in-summary .status {
+  justify-self: start;
+}
+
+.signed-in-summary > p {
+  color: var(--muted);
+  margin-bottom: 0;
+}
+
+.compact-details {
+  max-width: 680px;
+}
+
+.text-action {
+  min-height: 40px;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  padding-inline: 0;
+}
+
 .membership-card {
   border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
 }
