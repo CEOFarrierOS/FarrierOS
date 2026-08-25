@@ -5,7 +5,7 @@ import { completeJob } from "./jobCompletion";
 import { formatMonthlyPrice, hasFullAccess } from "./membership";
 import { buildOnMyWayMessage, createSmsHref } from "./messaging";
 import { createBackup, hydrateData, loadInitialData, parseBackup, resetData, saveData } from "./storage";
-import { ActivityPing, AppData, Appointment, Foot, Horse, Screen, ServiceType, ShoeSetup } from "./types";
+import { ActivityPing, AppData, Appointment, BusinessExpense, Foot, Horse, Screen, ServiceType, ShoeSetup, ThemePreference } from "./types";
 import {
   getCurrentSession,
   getCurrentWorkspace,
@@ -25,7 +25,7 @@ const screenLabels: Record<Screen, string> = {
   clients: "Clients, Barns & Horses",
   horses: "Horses",
   prep: "Prep Tomorrow",
-  finish: "Finish Job",
+  finish: "Current Stop",
   addClient: "Add Client",
   account: "Account & Membership",
 };
@@ -214,6 +214,17 @@ function App() {
       saveData(data).catch(() => setMockPreview("Could not save locally. Export a backup before closing."));
   }, [data, storageReady]);
 
+  useEffect(() => {
+    const preference = data.preferences?.theme ?? "system";
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const applyTheme = () => {
+      document.documentElement.dataset.theme = preference === "system" ? (media.matches ? "dark" : "light") : preference;
+    };
+    applyTheme();
+    media.addEventListener("change", applyTheme);
+    return () => media.removeEventListener("change", applyTheme);
+  }, [data.preferences?.theme]);
+
   function downloadBackup() {
     const blob = new Blob([createBackup(data)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -293,8 +304,7 @@ function App() {
 
   function openMobileScreen(nextScreen: Screen) {
     setMobileMenuOpen(false);
-    if (nextScreen === "finish" && horse) openFinish(horse.id);
-    else setScreen(nextScreen);
+    setScreen(nextScreen);
   }
 
   function updateClient(clientId: string, patch: Partial<AppData["clients"][number]>) {
@@ -650,6 +660,18 @@ function App() {
     if (ping) setMockPreview(`System notification: ${ping.message}`);
   }
 
+  function updatePreferences(patch: Partial<NonNullable<AppData["preferences"]>>) {
+    patchData({
+      ...data,
+      preferences: { theme: "system", currency: "USD", ...(data.preferences ?? {}), ...patch },
+    });
+  }
+
+  function addExpense(expense: BusinessExpense) {
+    patchData({ ...data, expenses: [expense, ...(data.expenses ?? [])] });
+    setMockPreview("Business expense saved.");
+  }
+
   function openScheduleAppointment(date: string) {
     const firstClient = data.clients[0];
     setSelectedCalendarDate(date);
@@ -863,6 +885,7 @@ function App() {
       writtenNotes: finishNote,
       cycleChange,
       verified,
+      markAppointmentComplete: false,
     });
     patchData({ ...result.data, appointments: normalizeRouteOrders(result.data.appointments) });
     const nextDueDate = result.nextDueDate;
@@ -888,7 +911,7 @@ function App() {
             <button
               className={screen === key ? "active" : ""}
               key={key}
-              onClick={() => (key === "finish" && horse ? openFinish(horse.id) : setScreen(key))}
+              onClick={() => setScreen(key)}
             >
               {screenLabels[key]}
             </button>
@@ -1135,10 +1158,29 @@ function App() {
           />
         )}
 
-        {fullAccess &&
-          screen === "finish" &&
-          (horse ? (
-            <FinishScreen
+        {fullAccess && screen === "finish" && (
+          <CurrentStopScreen
+            appointments={todayAppointments}
+            activeAppointmentId={activeAppointmentId}
+            data={data}
+            onSelect={(appointment) => {
+              const firstHorseId = appointment.horseIds[0];
+              if (firstHorseId) openFinish(firstHorseId, appointment.id);
+              else setActiveAppointmentId(appointment.id);
+            }}
+            onStart={(appointment) =>
+              updateAppointment(appointment.id, { startedAt: new Date().toISOString(), status: "in_progress" }, "Stop timer started.")
+            }
+            onComplete={(appointment, earningsCents, durationSeconds) => {
+              updateAppointment(
+                appointment.id,
+                { status: "complete", completedAt: new Date().toISOString(), durationSeconds, earningsCents },
+                "Stop completed and earnings logged.",
+              );
+              setMockPreview("Stop completed and earnings saved.");
+            }}
+            details={horse && activeAppointmentId ? (
+              <FinishScreen
               horse={horse}
               client={client}
               barn={barn}
@@ -1158,10 +1200,10 @@ function App() {
               verified={verified}
               setVerified={setVerified}
               onSave={saveVerifiedSetup}
-            />
-          ) : (
-            <EmptyHorsePanel onAddClient={openClientIntake} />
-          ))}
+              />
+            ) : null}
+          />
+        )}
 
         {screen === "account" && (
           <AccountScreen
@@ -1171,6 +1213,9 @@ function App() {
             authReady={authReady}
             session={session}
             workspace={workspace}
+            data={data}
+            onPreferences={updatePreferences}
+            onAddExpense={addExpense}
             onUpdateBusiness={updateBusiness}
             onMessage={setMockPreview}
             onBilling={() =>
@@ -1206,6 +1251,7 @@ function MembershipGate(props: { onAccount: () => void }) {
 }
 
 function AccountScreen(props: {
+  data: AppData;
   business: AppData["business"];
   membership: AppData["membership"];
   configured: boolean;
@@ -1215,14 +1261,29 @@ function AccountScreen(props: {
   onUpdateBusiness: (patch: Partial<AppData["business"]>) => void;
   onMessage: (message: string) => void;
   onBilling: () => void;
+  onPreferences: (patch: Partial<NonNullable<AppData["preferences"]>>) => void;
+  onAddExpense: (expense: BusinessExpense) => void;
 }) {
   const [authMode, setAuthMode] = useState<"signin" | "register">("signin");
   const [fullName, setFullName] = useState(props.business.farrierName);
   const [email, setEmail] = useState(props.business.email);
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [accountSection, setAccountSection] = useState<"account" | "finances">("account");
   const statusLabel =
     props.membership.status === "development" ? "Development access" : props.membership.status.replace("_", " ");
+
+  if (accountSection === "finances") {
+    return (
+      <section className="account-layout">
+        <div className="work-panel account-section-nav">
+          <button onClick={() => setAccountSection("account")}>Account Settings</button>
+          <button className="active">Finances</button>
+        </div>
+        <FinanceScreen data={props.data} onAddExpense={props.onAddExpense} onCurrency={(currency) => props.onPreferences({ currency })} />
+      </section>
+    );
+  }
 
   async function submitAuth(event: React.FormEvent) {
     event.preventDefault();
@@ -1249,6 +1310,10 @@ function AccountScreen(props: {
 
   return (
     <section className="account-layout">
+      <div className="work-panel account-section-nav">
+        <button className="active">Account Settings</button>
+        <button onClick={() => setAccountSection("finances")}>Finances</button>
+      </div>
       <div className="work-panel account-auth-card">
         <p className="eyebrow">FarrierOS account</p>
         {!props.configured ? (
@@ -1372,7 +1437,7 @@ function AccountScreen(props: {
           <span className="status good">{statusLabel}</span>
         </div>
         <ul className="plain-list membership-features">
-          <li>Complete Today, Calendar, Clients, Horses, Prep, and Finish Job access</li>
+          <li>Complete Today, Calendar, Clients, Horses, Prep, and Current Stop access</li>
           <li>Four-foot verified setup history</li>
           <li>Offline local records and JSON backups</li>
           <li>All current FarrierOS services—no feature restrictions</li>
@@ -1386,6 +1451,23 @@ function AccountScreen(props: {
         <button className="primary save-button" onClick={props.onBilling}>
           {props.membership.billingProvider === "development" ? "Preview Billing Setup" : "Manage Billing"}
         </button>
+      </div>
+
+      <div className="work-panel">
+        <p className="eyebrow">Appearance</p>
+        <h2>Theme</h2>
+        <p className="helper-text">System follows the current light or dark setting on this device.</p>
+        <div className="segmented wrap">
+          {(["system", "light", "dark"] as ThemePreference[]).map((theme) => (
+            <button
+              className={(props.data.preferences?.theme ?? "system") === theme ? "active" : ""}
+              key={theme}
+              onClick={() => props.onPreferences({ theme })}
+            >
+              {theme[0].toUpperCase() + theme.slice(1)}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="work-panel">
@@ -2828,7 +2910,7 @@ function HorsesScreen(props: {
           <div className="button-row">
             <button onClick={props.onPrep}>Prep</button>
             <button className="primary" onClick={props.onFinish}>
-              Finish Job
+              Open Current Stop
             </button>
           </div>
         </div>
@@ -3030,7 +3112,7 @@ function PrepScreen(props: {
                   Open Horse
                 </button>
                 <button className="primary" disabled={!horse} onClick={() => horse && props.onFinish(appt, horse)}>
-                  Finish Job
+                  Open Current Stop
                 </button>
               </div>
             </article>
@@ -3038,6 +3120,140 @@ function PrepScreen(props: {
         })}
       </div>
     </section>
+  );
+}
+
+function formatElapsed(seconds: number) {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const remaining = seconds % 60;
+  return [hours, minutes, remaining].map((value) => String(value).padStart(2, "0")).join(":");
+}
+
+function CurrentStopScreen(props: {
+  appointments: Appointment[];
+  activeAppointmentId: string | null;
+  data: AppData;
+  onSelect: (appointment: Appointment) => void;
+  onStart: (appointment: Appointment) => void;
+  onComplete: (appointment: Appointment, earningsCents: number, durationSeconds: number) => void;
+  details: React.ReactNode;
+}) {
+  const [, setClockTick] = useState(0);
+  const [earningsOpen, setEarningsOpen] = useState(false);
+  const [earnings, setEarnings] = useState("");
+  const selected = props.appointments.find((appointment) => appointment.id === props.activeAppointmentId) ?? null;
+  const elapsed = selected?.durationSeconds ?? (selected?.startedAt ? Math.max(0, Math.floor((Date.now() - new Date(selected.startedAt).getTime()) / 1000)) : 0);
+
+  useEffect(() => {
+    if (!selected?.startedAt || selected.status === "complete") return;
+    const timer = window.setInterval(() => setClockTick((value) => value + 1), 1000);
+    return () => window.clearInterval(timer);
+  }, [selected?.startedAt, selected?.status]);
+
+  return (
+    <section className="current-stop-layout">
+      <div className="work-panel">
+        <p className="eyebrow">Today's route</p>
+        <h2>Select Current Stop</h2>
+        {props.appointments.length === 0 ? (
+          <p className="empty-state">No stops are scheduled for today. Add one from Calendar.</p>
+        ) : (
+          <div className="stop-selector-list">
+            {props.appointments.map((appointment) => {
+              const client = props.data.clients.find((item) => item.id === appointment.clientId);
+              const barn = props.data.barns.find((item) => item.id === appointment.barnPropertyId);
+              return (
+                <button className={selected?.id === appointment.id ? "active stop-selector" : "stop-selector"} key={appointment.id} onClick={() => props.onSelect(appointment)}>
+                  <strong>Stop {appointment.routeOrder} · {appointment.startTime}</strong>
+                  <span>{client?.name ?? "Unassigned client"} · {barn?.name ?? "Unassigned barn"}</span>
+                  <small>{appointment.status.replace("_", " ")}</small>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+      {selected && (
+        <div className="work-panel stop-timer-panel">
+          <p className="eyebrow">Stopwatch</p>
+          <div className="stopwatch" aria-live="polite">{formatElapsed(elapsed)}</div>
+          {!selected.startedAt ? (
+            <button className="primary save-button" onClick={() => props.onStart(selected)}>Start Stop</button>
+          ) : selected.status !== "complete" ? (
+            <button className="success-button save-button" onClick={() => setEarningsOpen(true)}>Complete Stop</button>
+          ) : (
+            <p className="status good">Completed · {formatElapsed(selected.durationSeconds ?? elapsed)}</p>
+          )}
+        </div>
+      )}
+      {selected && props.details}
+      {earningsOpen && selected && (
+        <div className="modal-scrim" role="presentation" onMouseDown={() => setEarningsOpen(false)}>
+          <div aria-modal="true" className="schedule-modal earnings-modal" role="dialog" onMouseDown={(event) => event.stopPropagation()}>
+            <p className="eyebrow">Complete stop</p>
+            <h2>Log Stop Earnings</h2>
+            <label className="search-label">Earnings (USD)<input autoFocus min="0" step="0.01" type="number" value={earnings} onChange={(event) => setEarnings(event.target.value)} /></label>
+            <div className="modal-actions">
+              <button onClick={() => setEarningsOpen(false)}>Cancel</button>
+              <button className="primary" disabled={!earnings || Number(earnings) < 0} onClick={() => {
+                props.onComplete(selected, Math.round(Number(earnings) * 100), elapsed);
+                setEarningsOpen(false);
+                setEarnings("");
+              }}>Save Earnings & Complete</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+const majorCurrencies = ["USD", "CAD", "EUR", "GBP", "AUD", "NZD", "JPY", "CHF", "CNY", "HKD", "SGD", "INR", "BRL", "MXN", "ZAR", "SEK", "NOK", "DKK", "AED"];
+
+function FinanceScreen(props: { data: AppData; onCurrency: (currency: string) => void; onAddExpense: (expense: BusinessExpense) => void }) {
+  const [range, setRange] = useState<"day" | "week" | "month" | "year">("month");
+  const [amount, setAmount] = useState("");
+  const [category, setCategory] = useState("");
+  const [notes, setNotes] = useState("");
+  const [date, setDate] = useState(TODAY);
+  const currency = props.data.preferences?.currency ?? "USD";
+  const days = { day: 1, week: 7, month: 30, year: 365 }[range];
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - days + 1); cutoff.setHours(0, 0, 0, 0);
+  const earnings = props.data.appointments.filter((item) => (item.earningsCents ?? 0) > 0 && new Date(item.completedAt ?? `${item.date}T12:00:00`) >= cutoff);
+  const expenses = (props.data.expenses ?? []).filter((item) => new Date(`${item.date}T12:00:00`) >= cutoff);
+  const earningsTotal = earnings.reduce((sum, item) => sum + (item.earningsCents ?? 0), 0);
+  const expenseTotal = expenses.reduce((sum, item) => sum + item.amountCents, 0);
+  const money = (cents: number) => new Intl.NumberFormat(undefined, { style: "currency", currency }).format(cents / 100);
+  const combined = [...earnings.map((item) => ({ date: item.completedAt ?? item.date, amount: item.earningsCents ?? 0, type: "earning" })), ...expenses.map((item) => ({ date: item.date, amount: item.amountCents, type: "expense" }))].sort((a, b) => a.date.localeCompare(b.date));
+  const max = Math.max(1, ...combined.map((item) => item.amount));
+  const points = (type: string) => combined.map((item, index) => ({ ...item, index })).filter((item) => item.type === type).map((item) => `${40 + (combined.length <= 1 ? 0 : item.index * 520 / (combined.length - 1))},${220 - item.amount * 180 / max}`).join(" ");
+
+  return (
+    <>
+      <div className="work-panel finance-summary">
+        <div><span>Earnings</span><strong className="money-positive">{money(earningsTotal)}</strong></div>
+        <div><span>Expenses</span><strong className="money-negative">{money(expenseTotal)}</strong></div>
+        <div><span>Net</span><strong>{money(earningsTotal - expenseTotal)}</strong></div>
+      </div>
+      <div className="work-panel finance-chart-panel">
+        <div className="section-heading"><div><p className="eyebrow">Financial trend</p><h2>Earnings & Expenses</h2></div><select aria-label="Currency" value={currency} onChange={(event) => props.onCurrency(event.target.value)}>{majorCurrencies.map((item) => <option key={item}>{item}</option>)}</select></div>
+        <div className="segmented wrap">{(["day", "week", "month", "year"] as const).map((item) => <button className={range === item ? "active" : ""} key={item} onClick={() => setRange(item)}>{item[0].toUpperCase() + item.slice(1)}</button>)}</div>
+        <svg aria-label="Financial line graph with time on the horizontal axis and currency on the vertical axis" className="finance-chart" role="img" viewBox="0 0 600 260">
+          <line x1="40" x2="560" y1="220" y2="220" /><line x1="40" x2="40" y1="40" y2="220" />
+          <polyline className="earnings-line" fill="none" points={points("earning")} /><polyline className="expenses-line" fill="none" points={points("expense")} />
+          <text x="270" y="252">Time ({range})</text><text transform="rotate(-90 14 140)" x="14" y="140">{currency}</text>
+        </svg>
+        {combined.length === 0 && <p className="empty-state">Complete stops or add expenses to begin this graph.</p>}
+        <div className="chart-legend"><span className="money-positive">● Earnings</span><span className="money-negative">● Expenses</span></div>
+      </div>
+      <form className="work-panel expense-form" onSubmit={(event) => { event.preventDefault(); props.onAddExpense({ id: makeId("expense"), date, amountCents: Math.round(Number(amount) * 100), category: category.trim() || "General", notes: notes.trim(), createdAt: new Date().toISOString() }); setAmount(""); setCategory(""); setNotes(""); }}>
+        <p className="eyebrow">Business spending</p><h2>Add Expense</h2>
+        <div className="form-grid"><label>Date<input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label><label>Amount ({currency})<input min="0.01" required step="0.01" type="number" value={amount} onChange={(event) => setAmount(event.target.value)} /></label><label>Category<input placeholder="Fuel, supplies, insurance…" value={category} onChange={(event) => setCategory(event.target.value)} /></label><label>Notes<input value={notes} onChange={(event) => setNotes(event.target.value)} /></label></div>
+        <button className="primary" type="submit">Save Expense</button>
+        <p className="helper-text">Tax and accounting export will be added in a later phase.</p>
+      </form>
+    </>
   );
 }
 
@@ -3064,7 +3280,7 @@ function FinishScreen(props: {
         <p className="eyebrow">
           {props.client.name} - {props.barn.name}
         </p>
-        <h2>Finish {props.horse.name}</h2>
+        <h2>Service Record · {props.horse.name}</h2>
         <div className="segmented wrap">
           {(Object.keys(serviceLabels) as ServiceType[]).map((type) => (
             <button
@@ -3183,8 +3399,8 @@ function FinishScreen(props: {
         )}
       </div>
       <div className="work-panel sticky-save">
-        <p className="eyebrow">Complete visit</p>
-        <h2>Ready to finish?</h2>
+        <p className="eyebrow">Horse record</p>
+        <h2>Save service details</h2>
         <p>Records this service and calculates the next due date from {props.horse.serviceIntervalWeeks} weeks.</p>
         <label className="toggle-row">
           <input
@@ -3195,7 +3411,7 @@ function FinishScreen(props: {
           <span>Use this setup for next prep</span>
         </label>
         <button className="primary save-button" onClick={props.onSave}>
-          Finish
+          Save Service Record
         </button>
       </div>
     </section>

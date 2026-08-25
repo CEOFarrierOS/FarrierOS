@@ -24,6 +24,8 @@ function mergeWithDefaults(saved: AppData): AppData {
     serviceRecords: saved.serviceRecords ?? [],
     appointments: saved.appointments ?? [],
     photos: saved.photos ?? [],
+    preferences: { ...emptyData.preferences!, ...(saved.preferences ?? {}) },
+    expenses: saved.expenses ?? [],
   };
 }
 
@@ -47,6 +49,7 @@ function removeBundledDemoData(saved: AppData): AppData {
     serviceRecords: removeSeedIds(clean.serviceRecords, sampleData.serviceRecords),
     appointments: removeSeedIds(clean.appointments, sampleData.appointments),
     photos: removeSeedIds(clean.photos, sampleData.photos),
+    expenses: clean.expenses ?? [],
   };
 }
 

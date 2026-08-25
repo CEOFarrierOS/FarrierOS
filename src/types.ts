@@ -133,6 +133,26 @@ export interface Appointment {
   recurringIntervalWeeks: number;
   shoesPrepped: boolean;
   prepNote: string;
+  startedAt?: string;
+  completedAt?: string;
+  durationSeconds?: number;
+  earningsCents?: number;
+}
+
+export type ThemePreference = "system" | "light" | "dark";
+
+export interface BusinessExpense {
+  id: string;
+  date: string;
+  amountCents: number;
+  category: string;
+  notes: string;
+  createdAt: string;
+}
+
+export interface AppPreferences {
+  theme: ThemePreference;
+  currency: string;
 }
 
 export interface CollaborationMember {
@@ -180,4 +200,6 @@ export interface AppData {
   serviceRecords: ServiceRecord[];
   appointments: Appointment[];
   photos: PhotoDocument[];
+  preferences?: AppPreferences;
+  expenses?: BusinessExpense[];
 }

@@ -414,4 +414,6 @@ export const sampleData: AppData = {
       notes: "Placeholder only. No real imaging stored in Prototype 0.",
     },
   ],
+  preferences: { theme: "system", currency: "USD" },
+  expenses: [],
 };

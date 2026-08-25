@@ -18,6 +18,7 @@ export interface CompleteJobInput {
   writtenNotes: string;
   cycleChange: string;
   verified: boolean;
+  markAppointmentComplete?: boolean;
   now?: string;
   makeId?: (prefix: string) => string;
 }
@@ -90,7 +91,9 @@ export function completeJob(input: CompleteJobInput) {
       ...input.data.serviceRecords,
     ],
     appointments: input.data.appointments.map((appointment) =>
-      appointment.id === input.appointmentId ? { ...appointment, status: "complete" } : appointment,
+      appointment.id === input.appointmentId && input.markAppointmentComplete !== false
+        ? { ...appointment, status: "complete" }
+        : appointment,
     ),
   };
 
