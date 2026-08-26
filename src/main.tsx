@@ -1,6 +1,7 @@
 import React, { Component, ReactNode } from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
+import CoifPublicPage from "./CoifPublicPage";
 import "./styles.css";
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; message: string }> {
@@ -36,7 +37,11 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <ErrorBoundary>
-      <App />
+      {window.location.pathname.startsWith("/coif/") ? (
+        <CoifPublicPage token={decodeURIComponent(window.location.pathname.slice("/coif/".length))} />
+      ) : (
+        <App />
+      )}
     </ErrorBoundary>
   </React.StrictMode>,
 );

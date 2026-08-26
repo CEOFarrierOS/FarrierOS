@@ -1,0 +1,4 @@
+project_id = "uxrxduucwfvchdjwczci"
+
+[functions.coif-public]
+verify_jwt = false

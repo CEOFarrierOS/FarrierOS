@@ -16,6 +16,7 @@ import {
 } from "./cloud/auth";
 import { getSupabaseClient } from "./cloud/supabase";
 import { integrationStatus } from "./config";
+import { CoifLinkRecord, CoifSubmissionRecord, createCoifLink, listCoifLinks, listCoifSubmissions, markCoifImported, revokeCoifLink } from "./cloud/coif";
 
 const feet: Foot[] = ["LF", "RF", "LH", "RH"];
 
@@ -147,6 +148,9 @@ function App() {
   const [collapsedClientIds, setCollapsedClientIds] = useState<string[]>([]);
   const [calendarScheduleOpen, setCalendarScheduleOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [coifLinks, setCoifLinks] = useState<CoifLinkRecord[]>([]);
+  const [coifSubmissions, setCoifSubmissions] = useState<CoifSubmissionRecord[]>([]);
+  const [latestCoifUrl, setLatestCoifUrl] = useState("");
   const [scheduleMode, setScheduleMode] = useState<"existing" | "new">("existing");
   const [scheduleClientSearch, setScheduleClientSearch] = useState("");
   const [scheduleClientId, setScheduleClientId] = useState("");
@@ -198,6 +202,13 @@ function App() {
       .then(setWorkspace)
       .catch((error) => setMockPreview(error instanceof Error ? error.message : "Could not load workspace."));
   }, [session]);
+
+  useEffect(() => {
+    if (!workspace) { setCoifLinks([]); setCoifSubmissions([]); return; }
+    Promise.all([listCoifLinks(workspace.id), listCoifSubmissions(workspace.id)])
+      .then(([links, submissions]) => { setCoifLinks(links); setCoifSubmissions(submissions); })
+      .catch((error) => setMockPreview(error instanceof Error ? error.message : "Could not load COIF records."));
+  }, [workspace]);
 
   useEffect(() => {
     const update = () => setOnline(navigator.onLine);
@@ -536,6 +547,53 @@ function App() {
     };
 
     return { horse: horseDraft, footRecords, setups };
+  }
+
+  async function generateCoif(ownerName: string, ownerPhone: string) {
+    if (!workspace) { setMockPreview("Sign in and wait for your workspace before creating a COIF link."); return; }
+    try {
+      const created = await createCoifLink(workspace.id, ownerName, ownerPhone);
+      setLatestCoifUrl(created.url);
+      setCoifLinks(await listCoifLinks(workspace.id));
+      await navigator.clipboard?.writeText(created.url).catch(() => undefined);
+      setMockPreview("Secure 30-day COIF link created and copied when permitted.");
+    } catch (error) { setMockPreview(error instanceof Error ? error.message : "Could not create COIF link."); }
+  }
+
+  async function importCoifSubmission(submission: CoifSubmissionRecord) {
+    const phoneKey = submission.owner_contact.phone.replace(/\D/g, "");
+    if (phoneKey && data.clients.some((client) => client.phone.replace(/\D/g, "") === phoneKey)) {
+      setMockPreview("A client with this phone number already exists. Review that portfolio before importing a duplicate.");
+      return;
+    }
+    const clientId = makeId("client");
+    const barnId = makeId("barn");
+    const horseDrafts = submission.horse_intakes.map((intake) => {
+      const draft = buildHorseDraft(clientId, barnId, intake.name);
+      return { ...draft, horse: { ...draft.horse, breed: intake.breed, color: intake.color, age: intake.age, temperament: intake.temperament, safetyNotes: intake.safetyNotes, serviceIntervalWeeks: intake.serviceIntervalWeeks || 6, notes: [intake.lamenessIssues, intake.medicalNotes, intake.currentService ? `Current service: ${intake.currentService}` : "", intake.use ? `Use: ${intake.use}` : ""].filter(Boolean) } };
+    });
+    const ownerName = submission.owner_contact.name.trim();
+    const parts = ownerName.split(/\s+/);
+    patchData({
+      ...data,
+      clients: [...data.clients, { id: clientId, firstName: parts[0] ?? "", lastName: parts.slice(1).join(" "), name: ownerName, phone: submission.owner_contact.phone, email: submission.owner_contact.email, address: submission.owner_contact.mailingAddress || submission.property_and_access.serviceAddress, locationSource: "manual", notes: submission.owner_contact.alternateContact ? `Alternate contact: ${submission.owner_contact.alternateContact}` : "", horseIds: horseDrafts.map((draft) => draft.horse.id), barnIds: [barnId] }],
+      barns: [...data.barns, { id: barnId, name: submission.property_and_access.name || `${ownerName} Property`, clientIds: [clientId], address: submission.property_and_access.serviceAddress, gateCode: submission.property_and_access.gateCode, parkingNotes: submission.property_and_access.parkingNotes, barnManagerName: "", barnManagerPhone: "", accessInstructions: submission.property_and_access.accessInstructions, horseIds: horseDrafts.map((draft) => draft.horse.id) }],
+      horses: [...data.horses, ...horseDrafts.map((draft) => draft.horse)],
+      footRecords: [...data.footRecords, ...horseDrafts.flatMap((draft) => draft.footRecords)],
+      shoeSetups: [...data.shoeSetups, ...horseDrafts.flatMap((draft) => draft.setups)],
+    });
+    await markCoifImported(submission.id, submission.link_id, [clientId, barnId, ...horseDrafts.map((draft) => draft.horse.id)]);
+    if (workspace) setCoifSubmissions(await listCoifSubmissions(workspace.id));
+    setSelectedIntakeClientId(clientId);
+    setMockPreview(`${ownerName} and ${horseDrafts.length} horse${horseDrafts.length === 1 ? "" : "s"} imported.`);
+  }
+
+  async function revokeCoif(id: string) {
+    try {
+      await revokeCoifLink(id);
+      if (workspace) setCoifLinks(await listCoifLinks(workspace.id));
+      setMockPreview("COIF link revoked.");
+    } catch (error) { setMockPreview(error instanceof Error ? error.message : "Could not revoke COIF link."); }
   }
 
   function editClient(clientId: string) {
@@ -1115,6 +1173,13 @@ function App() {
               updateClient(clientId, { locationSource: "browser" });
               captureCurrentLocation();
             }}
+            workspaceReady={Boolean(workspace)}
+            coifLinks={coifLinks}
+            coifSubmissions={coifSubmissions}
+            latestCoifUrl={latestCoifUrl}
+            onGenerateCoif={generateCoif}
+            onImportCoif={importCoifSubmission}
+            onRevokeCoif={revokeCoif}
           />
         )}
 
@@ -2429,6 +2494,22 @@ function TeamSharePanel(props: { data: AppData }) {
   );
 }
 
+function CoifManager(props: { workspaceReady: boolean; links: CoifLinkRecord[]; submissions: CoifSubmissionRecord[]; latestUrl: string; onGenerate: (name: string, phone: string) => void; onImport: (submission: CoifSubmissionRecord) => void; onRevoke: (id: string) => void }) {
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [reviewId, setReviewId] = useState<string | null>(null);
+  const review = props.submissions.find((item) => item.id === reviewId) ?? null;
+  return <section className="coif-manager">
+    <div className="coif-manager-hero"><div><p className="eyebrow">Client onboarding</p><h2>COIF Links</h2><p>Create a private 30-day form for an owner to enter their property and every horse.</p></div><span className="status good">Workspace isolated</span></div>
+    {!props.workspaceReady ? <div className="billing-notice">Sign in to create secure COIF links and receive submissions.</div> : <div className="coif-create-grid"><label>Owner name hint<input placeholder="Optional" value={name} onChange={(event) => setName(event.target.value)} /></label><label>Owner phone hint<input placeholder="Optional" value={phone} onChange={(event) => setPhone(event.target.value)} /></label><button className="primary" onClick={() => props.onGenerate(name, phone)}>Create & Copy COIF Link</button></div>}
+    {props.latestUrl && <div className="coif-share-box"><strong>New link—save or send it now</strong><input readOnly value={props.latestUrl} /><div className="button-row"><button onClick={() => navigator.clipboard?.writeText(props.latestUrl)}>Copy Link</button><a className="button-link" href={`sms:?&body=${encodeURIComponent(`Please complete your secure FarrierOS client onboarding form: ${props.latestUrl}`)}`}>Send by Text</a></div><small>For security, the plain link token is shown only when it is created.</small></div>}
+    <div className="coif-metrics"><div><strong>{props.links.filter((link) => ["sent", "opened"].includes(link.status)).length}</strong><span>Active links</span></div><div><strong>{props.submissions.filter((item) => !item.reviewed_at).length}</strong><span>Awaiting review</span></div><div><strong>{props.submissions.filter((item) => item.reviewed_at).length}</strong><span>Imported</span></div></div>
+    {props.links.some((link) => ["sent", "opened"].includes(link.status)) && <div className="coif-inbox"><h3>Active Links</h3>{props.links.filter((link) => ["sent", "opened"].includes(link.status)).map((link) => <div className="coif-inbox-row" key={link.id}><span><strong>{link.owner_name_hint || "Unnamed owner"}</strong><small>{link.status} · expires {new Date(link.expires_at).toLocaleDateString()}</small></span><button className="danger-button" onClick={() => props.onRevoke(link.id)}>Revoke</button></div>)}</div>}
+    {props.submissions.length > 0 && <div className="coif-inbox"><h3>Submission Inbox</h3>{props.submissions.map((submission) => <button className={reviewId === submission.id ? "active coif-inbox-row" : "coif-inbox-row"} key={submission.id} onClick={() => setReviewId(submission.id)}><span><strong>{submission.owner_contact.name}</strong><small>{submission.horse_intakes.length} horse{submission.horse_intakes.length === 1 ? "" : "s"} · {new Date(submission.submitted_at).toLocaleDateString()}</small></span><span className={submission.reviewed_at ? "status good" : "status"}>{submission.reviewed_at ? "Imported" : "Review"}</span></button>)}</div>}
+    {review && <div className="coif-review"><div className="section-heading"><div><p className="eyebrow">Submission review</p><h3>{review.owner_contact.name}</h3></div><button className="icon-close" onClick={() => setReviewId(null)}>×</button></div><div className="detail-grid"><div><span>Phone</span><strong>{review.owner_contact.phone}</strong></div><div><span>Email</span><strong>{review.owner_contact.email || "Not provided"}</strong></div><div><span>Service address</span><strong>{review.property_and_access.serviceAddress}</strong></div><div><span>Property</span><strong>{review.property_and_access.name || "Not named"}</strong></div></div><div className="coif-review-horses">{review.horse_intakes.map((horse, index) => <article key={index}><strong>{horse.name}</strong><span>{[horse.breed, horse.age, horse.color].filter(Boolean).join(" · ") || "Details not provided"}</span>{horse.lamenessIssues && <p><b>Lameness:</b> {horse.lamenessIssues}</p>}{horse.safetyNotes && <p><b>Safety:</b> {horse.safetyNotes}</p>}</article>)}</div>{review.reviewed_at ? <p className="status good">Already imported into this portfolio.</p> : <button className="primary save-button" onClick={() => props.onImport(review)}>Approve & Import Portfolio</button>}</div>}
+  </section>;
+}
+
 function AddClientScreen(props: {
   data: AppData;
   selectedClientId: string | null;
@@ -2444,6 +2525,13 @@ function AddClientScreen(props: {
   onCancelRemoveHorse: () => void;
   onConfirmRemoveHorse: (horseId: string) => void;
   onUseLocation: (clientId: string) => void;
+  workspaceReady: boolean;
+  coifLinks: CoifLinkRecord[];
+  coifSubmissions: CoifSubmissionRecord[];
+  latestCoifUrl: string;
+  onGenerateCoif: (name: string, phone: string) => void;
+  onImportCoif: (submission: CoifSubmissionRecord) => void;
+  onRevokeCoif: (id: string) => void;
 }) {
   const selectedClient =
     props.data.clients.find((client) => client.id === props.selectedClientId) ?? props.data.clients[0];
@@ -2459,6 +2547,7 @@ function AddClientScreen(props: {
   if (!selectedClient) {
     return (
       <section className="work-panel full-width">
+        <CoifManager workspaceReady={props.workspaceReady} links={props.coifLinks} submissions={props.coifSubmissions} latestUrl={props.latestCoifUrl} onGenerate={props.onGenerateCoif} onImport={props.onImportCoif} onRevoke={props.onRevokeCoif} />
         <h2>Add Client</h2>
         <button className="primary" onClick={props.onNewClient}>
           Start Client Draft
@@ -2472,6 +2561,7 @@ function AddClientScreen(props: {
   return (
     <section className="intake-layout">
       <div className="work-panel intake-main">
+        <CoifManager workspaceReady={props.workspaceReady} links={props.coifLinks} submissions={props.coifSubmissions} latestUrl={props.latestCoifUrl} onGenerate={props.onGenerateCoif} onImport={props.onImportCoif} onRevoke={props.onRevokeCoif} />
         <div className="section-heading">
           <div>
             <p className="eyebrow">Client intake</p>
