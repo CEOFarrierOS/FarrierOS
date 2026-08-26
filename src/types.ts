@@ -14,6 +14,7 @@ export interface FarrierBusinessProfile {
 
 export interface Client {
   id: string;
+  intakeDraft?: boolean;
   firstName?: string;
   lastName?: string;
   name: string;

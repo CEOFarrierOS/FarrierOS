@@ -143,6 +143,7 @@ function App() {
   const [finishSetups, setFinishSetups] = useState<Partial<Record<Foot, ShoeSetup>>>({});
   const [search, setSearch] = useState("");
   const [selectedIntakeClientId, setSelectedIntakeClientId] = useState<string | null>(null);
+  const [draftPrompt, setDraftPrompt] = useState<{ clientId: string; step: "resume" | "delete" } | null>(null);
   const [clientPendingDeleteId, setClientPendingDeleteId] = useState<string | null>(null);
   const [horsePendingDeleteId, setHorsePendingDeleteId] = useState<string | null>(null);
   const [collapsedClientIds, setCollapsedClientIds] = useState<string[]>([]);
@@ -302,10 +303,11 @@ function App() {
     setData({ ...next });
   }
 
-  function openClientIntake() {
+  function startClientIntake(initialPatch: Partial<AppData["clients"][number]> = {}) {
     const clientId = makeId("client");
     const newClient = {
       id: clientId,
+      intakeDraft: true,
       firstName: "",
       lastName: "",
       name: "New Client",
@@ -316,6 +318,7 @@ function App() {
       notes: "",
       horseIds: [],
       barnIds: [],
+      ...initialPatch,
     };
     patchData({
       ...data,
@@ -324,11 +327,25 @@ function App() {
     setSelectedIntakeClientId(clientId);
     setScreen("addClient");
     setMockPreview("Client draft saved.");
+    return clientId;
+  }
+
+  function openAddClient() {
+    const unfinished = data.clients.find((item) => item.intakeDraft);
+    setSelectedIntakeClientId(null);
+    setScreen("addClient");
+    if (unfinished) setDraftPrompt({ clientId: unfinished.id, step: "resume" });
+  }
+
+  function navigateFromMenu(nextScreen: Screen) {
+    const activeDraft = data.clients.find((item) => item.id === selectedIntakeClientId && item.intakeDraft);
+    setScreen(nextScreen);
+    if (nextScreen !== "addClient" && activeDraft) setDraftPrompt({ clientId: activeDraft.id, step: "resume" });
   }
 
   function openMobileScreen(nextScreen: Screen) {
     setMobileMenuOpen(false);
-    setScreen(nextScreen);
+    navigateFromMenu(nextScreen);
   }
 
   function updateClient(clientId: string, patch: Partial<AppData["clients"][number]>) {
@@ -983,13 +1000,13 @@ function App() {
             <button
               className={screen === key ? "active" : ""}
               key={key}
-              onClick={() => setScreen(key)}
+              onClick={() => navigateFromMenu(key)}
             >
               {screenLabels[key]}
             </button>
           ))}
         </nav>
-        <button className="add-client-button" onClick={openClientIntake}>
+        <button className="add-client-button" onClick={openAddClient}>
           Add Client
         </button>
         <button className="ghost-button" onClick={downloadBackup}>
@@ -1048,7 +1065,7 @@ function App() {
               className="add-client-button"
               onClick={() => {
                 setMobileMenuOpen(false);
-                openClientIntake();
+                openAddClient();
               }}
             >
               Add Client
@@ -1173,7 +1190,8 @@ function App() {
             data={data}
             selectedClientId={selectedIntakeClientId}
             setSelectedClientId={setSelectedIntakeClientId}
-            onNewClient={openClientIntake}
+            onStartManualClient={startClientIntake}
+            onFinishManualClient={(clientId) => updateClient(clientId, { intakeDraft: false })}
             onUpdateClient={updateClient}
             onAssignBarn={assignClientBarn}
             onUpdateBarn={updateBarn}
@@ -1216,7 +1234,7 @@ function App() {
               onPrep={() => setScreen("prep")}
             />
           ) : (
-            <EmptyHorsePanel onAddClient={openClientIntake} />
+            <EmptyHorsePanel onAddClient={openAddClient} />
           ))}
 
         {fullAccess && screen === "prep" && (
@@ -1304,6 +1322,24 @@ function App() {
           />
         )}
       </main>
+
+      {draftPrompt && (
+        <div className="modal-scrim" role="presentation">
+          <div aria-modal="true" className="schedule-modal" role="dialog">
+            <div className="modal-heading"><div><p className="eyebrow">Manual client intake</p><h2>{draftPrompt.step === "resume" ? "Intake form in progress" : "Delete unfinished intake?"}</h2></div></div>
+            <p>{draftPrompt.step === "resume" ? "Manual Client Intake Form in Progress — would you like to continue adding this client?" : "Would you like to delete the current Client Intake Form in Progress?"}</p>
+            <div className="modal-actions">
+              {draftPrompt.step === "resume" ? <>
+                <button className="primary" onClick={() => { setSelectedIntakeClientId(draftPrompt.clientId); setScreen("addClient"); setDraftPrompt(null); }}>Yes, Continue</button>
+                <button onClick={() => setDraftPrompt({ ...draftPrompt, step: "delete" })}>No</button>
+              </> : <>
+                <button className="danger-button" onClick={() => { deleteClient(draftPrompt.clientId); setDraftPrompt(null); }}>Yes, Delete</button>
+                <button onClick={() => setDraftPrompt(null)}>No, Keep It</button>
+              </>}
+            </div>
+          </div>
+        </div>
+      )}
 
       {mockPreview && (
         <div className="toast" role="status">
@@ -2528,8 +2564,9 @@ function CoifManager(props: { workspaceReady: boolean; links: CoifLinkRecord[]; 
 function AddClientScreen(props: {
   data: AppData;
   selectedClientId: string | null;
-  setSelectedClientId: (id: string) => void;
-  onNewClient: () => void;
+  setSelectedClientId: (id: string | null) => void;
+  onStartManualClient: (initialPatch?: Partial<AppData["clients"][number]>) => string;
+  onFinishManualClient: (clientId: string) => void;
   onUpdateClient: (clientId: string, patch: Partial<AppData["clients"][number]>) => void;
   onAssignBarn: (clientId: string, mode: "none" | "existing" | "new", barnId?: string) => void;
   onUpdateBarn: (barnId: string, patch: Partial<AppData["barns"][number]>) => void;
@@ -2549,8 +2586,8 @@ function AddClientScreen(props: {
   onRevokeCoif: (id: string) => void;
   onRefreshCoif: () => void;
 }) {
-  const selectedClient =
-    props.data.clients.find((client) => client.id === props.selectedClientId) ?? props.data.clients[0];
+  const [manualEntryOpen, setManualEntryOpen] = useState(false);
+  const selectedClient = props.data.clients.find((client) => client.id === props.selectedClientId) ?? null;
   const assignedBarn = selectedClient?.barnIds[0]
     ? props.data.barns.find((barn) => barn.id === selectedClient.barnIds[0])
     : null;
@@ -2564,10 +2601,14 @@ function AddClientScreen(props: {
     return (
       <section className="work-panel full-width">
         <CoifManager workspaceReady={props.workspaceReady} links={props.coifLinks} submissions={props.coifSubmissions} latestUrl={props.latestCoifUrl} onGenerate={props.onGenerateCoif} onImport={props.onImportCoif} onRevoke={props.onRevokeCoif} onRefresh={props.onRefreshCoif} />
-        <h2>Add Client</h2>
-        <button className="primary" onClick={props.onNewClient}>
-          Start Client Draft
-        </button>
+        <div className="section-heading"><div><p className="eyebrow">Manual entry</p><h2>Add New Client Manually</h2><p className="helper-text">A draft is created only after you type the first piece of information.</p></div>{!manualEntryOpen && <button className="primary" onClick={() => setManualEntryOpen(true)}>Add New Client Manually</button>}</div>
+        {manualEntryOpen && <div className="form-grid manual-intake-starter">
+          <label>First name<input autoFocus placeholder="Begin typing to save a draft" onChange={(event) => { if (event.target.value) props.onStartManualClient({ firstName: event.target.value, name: event.target.value }); }} /></label>
+          <label>Last name<input placeholder="Begin typing to save a draft" onChange={(event) => { if (event.target.value) props.onStartManualClient({ lastName: event.target.value, name: event.target.value }); }} /></label>
+          <label>Phone<input placeholder="Begin typing to save a draft" onChange={(event) => { if (event.target.value) props.onStartManualClient({ phone: event.target.value }); }} /></label>
+          <label>Email<input type="email" placeholder="Begin typing to save a draft" onChange={(event) => { if (event.target.value) props.onStartManualClient({ email: event.target.value }); }} /></label>
+          <label className="editor-wide">Address<input placeholder="Begin typing to save a draft" onChange={(event) => { if (event.target.value) props.onStartManualClient({ address: event.target.value, locationSource: "manual" }); }} /></label>
+        </div>}
       </section>
     );
   }
@@ -2584,7 +2625,7 @@ function AddClientScreen(props: {
             <h2>Client Portfolio</h2>
             <p className="helper-text">Every field autosaves, even when partially filled.</p>
           </div>
-          <button onClick={props.onNewClient}>Start New Client</button>
+          <button onClick={() => props.setSelectedClientId(null)}>Add Another Client</button>
         </div>
 
         <label className="search-label">
@@ -2637,6 +2678,7 @@ function AddClientScreen(props: {
 
         <div className="button-row intake-actions">
           <button onClick={() => props.onUseLocation(selectedClient.id)}>Use Current Location</button>
+          {selectedClient.intakeDraft && <button className="primary" onClick={() => props.onFinishManualClient(selectedClient.id)}>Finish Manual Intake</button>}
           <span className="status">
             {selectedClient.locationSource === "browser" ? "Browser location selected" : "Manual input ready"}
           </span>
