@@ -16,11 +16,15 @@ export interface CoifHorseIntake {
 }
 
 export interface CoifPayload {
-  owner: { name: string; phone: string; email: string; mailingAddress: string; alternateContact: string };
-  property: { name: string; serviceAddress: string; gateCode: string; parkingNotes: string; accessInstructions: string };
+  owner: { firstName: string; lastName: string; phone: string; email: string; name?: string };
+  property: { name: string; serviceAddress: string; gateCode: string; otherInstructions: string; accessInstructions?: string };
   horses: CoifHorseIntake[];
   messagingConsent: boolean;
   signature: string;
+}
+
+export function coifOwnerName(owner: CoifPayload["owner"]) {
+  return [owner.firstName, owner.lastName].filter(Boolean).join(" ").trim() || owner.name?.trim() || "Unnamed owner";
 }
 
 export interface CoifLinkRecord {

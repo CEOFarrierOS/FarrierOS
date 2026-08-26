@@ -26,7 +26,10 @@ Deno.serve(async (request) => {
     if (body.action !== "submit") return json({ error: "Invalid request." }, 400);
     if (link.status === "submitted") return json({ error: "This form has already been submitted." }, 409);
     const payload = body.payload;
-    if (!payload?.owner?.name?.trim() || !payload?.owner?.phone?.trim() || !payload?.property?.serviceAddress?.trim() || !payload?.signature?.trim()) return json({ error: "Complete all required fields before submitting." }, 400);
+    const ownerFirstName = payload?.owner?.firstName?.trim();
+    const ownerLastName = payload?.owner?.lastName?.trim();
+    const legacyOwnerName = payload?.owner?.name?.trim();
+    if ((!legacyOwnerName && (!ownerFirstName || !ownerLastName)) || !payload?.owner?.phone?.trim() || !payload?.property?.serviceAddress?.trim() || !payload?.signature?.trim()) return json({ error: "Complete all required fields before submitting." }, 400);
     if (!Array.isArray(payload.horses) || payload.horses.length < 1 || payload.horses.length > 100 || payload.horses.some((horse: { name?: string }) => !horse.name?.trim())) return json({ error: "Add a name for every horse before submitting." }, 400);
     if (JSON.stringify(payload).length > 250000) return json({ error: "This submission is too large." }, 413);
     const { error: insertError } = await admin.from("coif_submissions").insert({ link_id: link.id, workspace_id: link.workspace_id, owner_contact: payload.owner, property_and_access: payload.property, horse_intakes: payload.horses, messaging_consent: { consent: Boolean(payload.messagingConsent), signature: payload.signature } });
