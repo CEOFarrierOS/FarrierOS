@@ -297,7 +297,7 @@ small {
   box-shadow: 0 8px 24px rgba(216, 179, 90, 0.16), inset 0 1px rgba(255, 255, 255, 0.32);
 }
 
-.brand-horseshoe { width: 28px; height: 28px; color: var(--accent-ink); filter: drop-shadow(0 1px rgba(255,255,255,.18)); }
+.brand-horseshoe { width: 30px; height: 30px; color: var(--accent-ink); filter: drop-shadow(0 1px rgba(255,255,255,.18)); }
 
 .app-icon {
   width: 20px;
@@ -1469,8 +1469,17 @@ dd {
 .finance-chart polyline { stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
 .earnings-line { stroke: #69b675; }
 .expenses-line { stroke: #df6b62; }
+.earning-point { fill: #69b675; stroke: var(--surface-raised); stroke-width: 3; }
+.expense-point { fill: #df6b62; stroke: var(--surface-raised); stroke-width: 3; }
 .chart-legend { display: flex; gap: 1rem; justify-content: center; }
-.expense-form { grid-column: 1 / -1; }
+.finance-screen-layout { align-items: start; }
+.finance-entry-form { min-width: 0; }
+.finance-records { grid-column: 1 / -1; }
+.finance-record-row { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(150px, .35fr) minmax(130px, .3fr) auto; gap: .75rem; align-items: end; border-top: 1px solid var(--line); padding: .85rem 0; }
+.finance-record-row > div { display: grid; gap: .3rem; align-self: center; }
+.record-kind { justify-self: start; border-radius: 999px; padding: .22rem .5rem; font-size: .65rem; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
+.record-kind.income { background: rgba(105,182,117,.14); color: #91d19b; }
+.record-kind.expense { background: rgba(223,107,98,.14); color: #f09189; }
 
 .coif-manager {
   display: grid;
@@ -1797,6 +1806,8 @@ dd {
   .finance-summary {
     grid-template-columns: 1fr;
   }
+
+  .finance-record-row { grid-template-columns: 1fr; }
 
   .coif-manager-hero, .coif-create-grid, .coif-metrics { grid-template-columns: 1fr; }
   .coif-manager-hero .status { justify-self: start; }

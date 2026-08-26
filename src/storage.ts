@@ -26,6 +26,7 @@ function mergeWithDefaults(saved: AppData): AppData {
     photos: saved.photos ?? [],
     preferences: { ...emptyData.preferences!, ...(saved.preferences ?? {}) },
     expenses: saved.expenses ?? [],
+    incomeEntries: saved.incomeEntries ?? [],
   };
 }
 
@@ -50,6 +51,7 @@ function removeBundledDemoData(saved: AppData): AppData {
     appointments: removeSeedIds(clean.appointments, sampleData.appointments),
     photos: removeSeedIds(clean.photos, sampleData.photos),
     expenses: clean.expenses ?? [],
+    incomeEntries: clean.incomeEntries ?? [],
   };
 }
 

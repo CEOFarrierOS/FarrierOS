@@ -5,7 +5,7 @@ import { completeJob } from "./jobCompletion";
 import { formatMonthlyPrice, hasFullAccess } from "./membership";
 import { buildOnMyWayMessage, createSmsHref } from "./messaging";
 import { createBackup, hydrateData, loadInitialData, parseBackup, resetData, saveData } from "./storage";
-import { ActivityPing, AppData, Appointment, BusinessExpense, Foot, Horse, Screen, ServiceType, ShoeSetup, ThemePreference } from "./types";
+import { ActivityPing, AppData, Appointment, BusinessExpense, BusinessIncome, Foot, Horse, Screen, ServiceType, ShoeSetup, ThemePreference } from "./types";
 import {
   getCurrentSession,
   getCurrentWorkspace,
@@ -28,13 +28,14 @@ const screenLabels: Record<Screen, string> = {
   horses: "Horses",
   prep: "Prep Tomorrow",
   finish: "Current Stop",
+  finances: "Finances",
   addClient: "Add Client",
   account: "Account & Membership",
 };
 
-const primaryScreens: Screen[] = ["today", "calendar", "clients", "prep", "finish"];
+const primaryScreens: Screen[] = ["today", "calendar", "clients", "prep", "finish", "finances"];
 
-type AppIconName = "today" | "calendar" | "clients" | "prep" | "finish" | "add" | "account";
+type AppIconName = "today" | "calendar" | "clients" | "prep" | "finish" | "finances" | "add" | "account";
 
 function AppIcon({ name }: { name: AppIconName }) {
   const paths: Record<AppIconName, ReactNode> = {
@@ -43,6 +44,7 @@ function AppIcon({ name }: { name: AppIconName }) {
     clients: <><circle cx="9" cy="8" r="3"/><path d="M3.5 19c.6-3.2 2.4-5 5.5-5s4.9 1.8 5.5 5M16 7.5a2.5 2.5 0 0 1 0 5M17 14c2.2.4 3.4 2 3.7 4.5"/></>,
     prep: <><path d="M6 3h12v18H6zM9 8l1.5 1.5L14 6M9 14l1.5 1.5L14 12M16 8h.01M16 14h.01"/></>,
     finish: <><circle cx="12" cy="13" r="8"/><path d="M9 2h6M12 5v8l4 2"/></>,
+    finances: <><circle cx="12" cy="12" r="9"/><path d="M15.5 8.5c-.8-.7-1.9-1-3.2-1-1.8 0-3 .8-3 2s1 1.9 3.1 2.4c2.1.5 3.1 1.2 3.1 2.5s-1.3 2.2-3.3 2.2c-1.5 0-2.8-.5-3.7-1.4M12 5.5v13"/></>,
     add: <><circle cx="9" cy="8" r="3"/><path d="M3.5 19c.6-3.2 2.4-5 5.5-5 1.2 0 2.2.3 3 .8M18 13v8M14 17h8"/></>,
     account: <><circle cx="12" cy="8" r="4"/><path d="M4 21c.8-4.7 3.4-7 8-7s7.2 2.3 8 7"/></>,
   };
@@ -777,6 +779,21 @@ function App() {
     setMockPreview("Business expense saved.");
   }
 
+  function addIncome(income: BusinessIncome) {
+    patchData({ ...data, incomeEntries: [income, ...(data.incomeEntries ?? [])] });
+    setMockPreview("Income saved to the selected date.");
+  }
+
+  function updateIncome(id: string, patch: Partial<BusinessIncome>) {
+    patchData({ ...data, incomeEntries: (data.incomeEntries ?? []).map((item) => item.id === id ? { ...item, ...patch } : item) });
+    setMockPreview("Income entry updated.");
+  }
+
+  function updateExpense(id: string, patch: Partial<BusinessExpense>) {
+    patchData({ ...data, expenses: (data.expenses ?? []).map((item) => item.id === id ? { ...item, ...patch } : item) });
+    setMockPreview("Expense entry updated.");
+  }
+
   function openScheduleAppointment(date: string) {
     const firstClient = data.clients[0];
     setSelectedCalendarDate(date);
@@ -1325,6 +1342,20 @@ function App() {
           />
         )}
 
+        {fullAccess && screen === "finances" && (
+          <section className="account-layout finance-screen-layout">
+            <FinanceScreen
+              data={data}
+              onAddExpense={addExpense}
+              onAddIncome={addIncome}
+              onUpdateAppointment={(id, patch) => updateAppointment(id, patch)}
+              onUpdateExpense={updateExpense}
+              onUpdateIncome={updateIncome}
+              onCurrency={(currency) => updatePreferences({ currency })}
+            />
+          </section>
+        )}
+
         {screen === "account" && (
           <AccountScreen
             business={data.business}
@@ -1335,7 +1366,6 @@ function App() {
             workspace={workspace}
             data={data}
             onPreferences={updatePreferences}
-            onAddExpense={addExpense}
             onUpdateBusiness={updateBusiness}
             onMessage={setMockPreview}
             onBilling={() =>
@@ -1400,28 +1430,14 @@ function AccountScreen(props: {
   onMessage: (message: string) => void;
   onBilling: () => void;
   onPreferences: (patch: Partial<NonNullable<AppData["preferences"]>>) => void;
-  onAddExpense: (expense: BusinessExpense) => void;
 }) {
   const [authMode, setAuthMode] = useState<"signin" | "register">("signin");
   const [fullName, setFullName] = useState(props.business.farrierName);
   const [email, setEmail] = useState(props.business.email);
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [accountSection, setAccountSection] = useState<"account" | "finances">("account");
   const statusLabel =
     props.membership.status === "development" ? "Development access" : props.membership.status.replace("_", " ");
-
-  if (accountSection === "finances") {
-    return (
-      <section className="account-layout">
-        <div className="work-panel account-section-nav">
-          <button onClick={() => setAccountSection("account")}>Account Settings</button>
-          <button className="active">Finances</button>
-        </div>
-        <FinanceScreen data={props.data} onAddExpense={props.onAddExpense} onCurrency={(currency) => props.onPreferences({ currency })} />
-      </section>
-    );
-  }
 
   async function submitAuth(event: React.FormEvent) {
     event.preventDefault();
@@ -1448,10 +1464,6 @@ function AccountScreen(props: {
 
   return (
     <section className="account-layout">
-      <div className="work-panel account-section-nav">
-        <button className="active">Account Settings</button>
-        <button onClick={() => setAccountSection("finances")}>Finances</button>
-      </div>
       <div className="work-panel account-auth-card">
         <p className="eyebrow">FarrierOS account</p>
         {!props.configured ? (
@@ -3400,23 +3412,39 @@ function CurrentStopScreen(props: {
 
 const majorCurrencies = ["USD", "CAD", "EUR", "GBP", "AUD", "NZD", "JPY", "CHF", "CNY", "HKD", "SGD", "INR", "BRL", "MXN", "ZAR", "SEK", "NOK", "DKK", "AED"];
 
-function FinanceScreen(props: { data: AppData; onCurrency: (currency: string) => void; onAddExpense: (expense: BusinessExpense) => void }) {
+function FinanceScreen(props: { data: AppData; onCurrency: (currency: string) => void; onAddExpense: (expense: BusinessExpense) => void; onAddIncome: (income: BusinessIncome) => void; onUpdateAppointment: (id: string, patch: Partial<Appointment>) => void; onUpdateExpense: (id: string, patch: Partial<BusinessExpense>) => void; onUpdateIncome: (id: string, patch: Partial<BusinessIncome>) => void }) {
   const [range, setRange] = useState<"day" | "week" | "month" | "year">("month");
-  const [amount, setAmount] = useState("");
-  const [category, setCategory] = useState("");
-  const [notes, setNotes] = useState("");
-  const [date, setDate] = useState(TODAY);
+  const [expenseAmount, setExpenseAmount] = useState("");
+  const [expenseCategory, setExpenseCategory] = useState("");
+  const [expenseNotes, setExpenseNotes] = useState("");
+  const [expenseDate, setExpenseDate] = useState(TODAY);
+  const [incomeAmount, setIncomeAmount] = useState("");
+  const [incomeSource, setIncomeSource] = useState("");
+  const [incomeNotes, setIncomeNotes] = useState("");
+  const [incomeDate, setIncomeDate] = useState(TODAY);
   const currency = props.data.preferences?.currency ?? "USD";
   const days = { day: 1, week: 7, month: 30, year: 365 }[range];
   const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - days + 1); cutoff.setHours(0, 0, 0, 0);
-  const earnings = props.data.appointments.filter((item) => (item.earningsCents ?? 0) > 0 && new Date(item.completedAt ?? `${item.date}T12:00:00`) >= cutoff);
+  const stopEarnings = props.data.appointments.filter((item) => (item.earningsCents ?? 0) > 0);
+  const manualIncome = props.data.incomeEntries ?? [];
+  const earnings = [...stopEarnings.map((item) => ({ date: item.date, amountCents: item.earningsCents ?? 0 })), ...manualIncome.map((item) => ({ date: item.date, amountCents: item.amountCents }))].filter((item) => new Date(`${item.date}T12:00:00`) >= cutoff);
   const expenses = (props.data.expenses ?? []).filter((item) => new Date(`${item.date}T12:00:00`) >= cutoff);
-  const earningsTotal = earnings.reduce((sum, item) => sum + (item.earningsCents ?? 0), 0);
+  const earningsTotal = earnings.reduce((sum, item) => sum + item.amountCents, 0);
   const expenseTotal = expenses.reduce((sum, item) => sum + item.amountCents, 0);
   const money = (cents: number) => new Intl.NumberFormat(undefined, { style: "currency", currency }).format(cents / 100);
-  const combined = [...earnings.map((item) => ({ date: item.completedAt ?? item.date, amount: item.earningsCents ?? 0, type: "earning" })), ...expenses.map((item) => ({ date: item.date, amount: item.amountCents, type: "expense" }))].sort((a, b) => a.date.localeCompare(b.date));
-  const max = Math.max(1, ...combined.map((item) => item.amount));
-  const points = (type: string) => combined.map((item, index) => ({ ...item, index })).filter((item) => item.type === type).map((item) => `${40 + (combined.length <= 1 ? 0 : item.index * 520 / (combined.length - 1))},${220 - item.amount * 180 / max}`).join(" ");
+  const daily = new Map<string, { earning: number; expense: number }>();
+  earnings.forEach((item) => { const current = daily.get(item.date) ?? { earning: 0, expense: 0 }; current.earning += item.amountCents; daily.set(item.date, current); });
+  expenses.forEach((item) => { const current = daily.get(item.date) ?? { earning: 0, expense: 0 }; current.expense += item.amountCents; daily.set(item.date, current); });
+  const chartDays = Array.from(daily.entries()).sort(([a], [b]) => a.localeCompare(b));
+  const max = Math.max(1, ...chartDays.flatMap(([, values]) => [values.earning, values.expense]));
+  const chartPoints = (type: "earning" | "expense") => chartDays.map(([date, values], index) => ({ date, amount: values[type], x: chartDays.length === 1 ? 300 : 50 + index * 500 / (chartDays.length - 1), y: 215 - values[type] * 165 / max }));
+  const earningPoints = chartPoints("earning");
+  const expensePoints = chartPoints("expense");
+  const recentRecords = [
+    ...stopEarnings.map((item) => ({ id: item.id, kind: "stop" as const, date: item.date, amountCents: item.earningsCents ?? 0, label: `Completed stop · ${props.data.clients.find((client) => client.id === item.clientId)?.name || "Client"}` })),
+    ...manualIncome.map((item) => ({ id: item.id, kind: "income" as const, date: item.date, amountCents: item.amountCents, label: item.source || "Manual income" })),
+    ...(props.data.expenses ?? []).map((item) => ({ id: item.id, kind: "expense" as const, date: item.date, amountCents: item.amountCents, label: item.category || "Expense" })),
+  ].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 20);
 
   return (
     <>
@@ -3430,20 +3458,34 @@ function FinanceScreen(props: { data: AppData; onCurrency: (currency: string) =>
         <div className="segmented wrap">{(["day", "week", "month", "year"] as const).map((item) => <button className={range === item ? "active" : ""} key={item} onClick={() => setRange(item)}>{item[0].toUpperCase() + item.slice(1)}</button>)}</div>
         <svg aria-label="Financial line graph with time on the horizontal axis and currency on the vertical axis" className="finance-chart" role="img" viewBox="0 0 600 260">
           <line x1="40" x2="560" y1="220" y2="220" /><line x1="40" x2="40" y1="40" y2="220" />
-          <polyline className="earnings-line" fill="none" points={points("earning")} /><polyline className="expenses-line" fill="none" points={points("expense")} />
+          <polyline className="earnings-line" fill="none" points={earningPoints.map((point) => `${point.x},${point.y}`).join(" ")} /><polyline className="expenses-line" fill="none" points={expensePoints.map((point) => `${point.x},${point.y}`).join(" ")} />
+          {earningPoints.filter((point) => point.amount > 0).map((point) => <circle className="earning-point" cx={point.x} cy={point.y} key={`earning-${point.date}`} r="6"><title>{point.date}: {money(point.amount)}</title></circle>)}
+          {expensePoints.filter((point) => point.amount > 0).map((point) => <circle className="expense-point" cx={point.x} cy={point.y} key={`expense-${point.date}`} r="6"><title>{point.date}: {money(point.amount)}</title></circle>)}
           <text x="270" y="252">Time ({range})</text><text transform="rotate(-90 14 140)" x="14" y="140">{currency}</text>
         </svg>
-        {combined.length === 0 && <p className="empty-state">Complete stops or add expenses to begin this graph.</p>}
+        {chartDays.length === 0 && <p className="empty-state">Complete stops, add income, or add expenses to begin this graph.</p>}
         <div className="chart-legend"><span className="money-positive">● Earnings</span><span className="money-negative">● Expenses</span></div>
       </div>
-      <form className="work-panel expense-form" onSubmit={(event) => { event.preventDefault(); props.onAddExpense({ id: makeId("expense"), date, amountCents: Math.round(Number(amount) * 100), category: category.trim() || "General", notes: notes.trim(), createdAt: new Date().toISOString() }); setAmount(""); setCategory(""); setNotes(""); }}>
+      <form className="work-panel finance-entry-form" onSubmit={(event) => { event.preventDefault(); props.onAddIncome({ id: makeId("income"), date: incomeDate, amountCents: Math.round(Number(incomeAmount) * 100), source: incomeSource.trim() || "Manual income", notes: incomeNotes.trim(), createdAt: new Date().toISOString() }); setIncomeAmount(""); setIncomeSource(""); setIncomeNotes(""); }}>
+        <p className="eyebrow">Payments received</p><h2>Add Income</h2><p className="helper-text">Choose the date the payment belongs to—even when a client pays later.</p>
+        <div className="form-grid"><label>Date received<input type="date" value={incomeDate} onChange={(event) => setIncomeDate(event.target.value)} /></label><label>Amount ({currency})<input min="0.01" required step="0.01" type="number" value={incomeAmount} onChange={(event) => setIncomeAmount(event.target.value)} /></label><label>Source<input placeholder="Client, stop, other income…" value={incomeSource} onChange={(event) => setIncomeSource(event.target.value)} /></label><label>Notes<input value={incomeNotes} onChange={(event) => setIncomeNotes(event.target.value)} /></label></div><button className="primary" type="submit">Save Income</button>
+      </form>
+      <form className="work-panel finance-entry-form" onSubmit={(event) => { event.preventDefault(); props.onAddExpense({ id: makeId("expense"), date: expenseDate, amountCents: Math.round(Number(expenseAmount) * 100), category: expenseCategory.trim() || "General", notes: expenseNotes.trim(), createdAt: new Date().toISOString() }); setExpenseAmount(""); setExpenseCategory(""); setExpenseNotes(""); }}>
         <p className="eyebrow">Business spending</p><h2>Add Expense</h2>
-        <div className="form-grid"><label>Date<input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label><label>Amount ({currency})<input min="0.01" required step="0.01" type="number" value={amount} onChange={(event) => setAmount(event.target.value)} /></label><label>Category<input placeholder="Fuel, supplies, insurance…" value={category} onChange={(event) => setCategory(event.target.value)} /></label><label>Notes<input value={notes} onChange={(event) => setNotes(event.target.value)} /></label></div>
+        <div className="form-grid"><label>Date<input type="date" value={expenseDate} onChange={(event) => setExpenseDate(event.target.value)} /></label><label>Amount ({currency})<input min="0.01" required step="0.01" type="number" value={expenseAmount} onChange={(event) => setExpenseAmount(event.target.value)} /></label><label>Category<input placeholder="Fuel, supplies, insurance…" value={expenseCategory} onChange={(event) => setExpenseCategory(event.target.value)} /></label><label>Notes<input value={expenseNotes} onChange={(event) => setExpenseNotes(event.target.value)} /></label></div>
         <button className="primary" type="submit">Save Expense</button>
         <p className="helper-text">Tax and accounting export will be added in a later phase.</p>
       </form>
+      <div className="work-panel finance-records"><p className="eyebrow">Editable ledger</p><h2>Recent Entries</h2><p className="helper-text">Correct a date or amount at any time. Saving immediately recalculates totals and the graph.</p>{recentRecords.length === 0 ? <p className="empty-state">No financial entries yet.</p> : recentRecords.map((record) => <FinanceRecordEditor key={`${record.kind}-${record.id}`} record={record} onSave={(date, amountCents) => { if (record.kind === "stop") props.onUpdateAppointment(record.id, { date, completedAt: `${date}T12:00:00`, earningsCents: amountCents }); else if (record.kind === "income") props.onUpdateIncome(record.id, { date, amountCents }); else props.onUpdateExpense(record.id, { date, amountCents }); }} />)}</div>
     </>
   );
+}
+
+function FinanceRecordEditor({ record, onSave }: { record: { kind: "stop" | "income" | "expense"; date: string; amountCents: number; label: string }; onSave: (date: string, amountCents: number) => void }) {
+  const [date, setDate] = useState(record.date);
+  const [amount, setAmount] = useState((record.amountCents / 100).toFixed(2));
+  useEffect(() => { setDate(record.date); setAmount((record.amountCents / 100).toFixed(2)); }, [record.date, record.amountCents]);
+  return <div className="finance-record-row"><div><span className={record.kind === "expense" ? "record-kind expense" : "record-kind income"}>{record.kind === "expense" ? "Expense" : "Income"}</span><strong>{record.label}</strong></div><label>Date<input value={date} type="date" onChange={(event) => setDate(event.target.value)} /></label><label>Amount<input value={amount} min="0" step="0.01" type="number" onChange={(event) => setAmount(event.target.value)} /></label><button disabled={!date || Number(amount) < 0} onClick={() => onSave(date, Math.round(Number(amount) * 100))}>Save Changes</button></div>;
 }
 
 function FinishScreen(props: {

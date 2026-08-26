@@ -24,4 +24,5 @@ export const emptyData: AppData = {
   photos: [],
   preferences: { theme: "system", currency: "USD" },
   expenses: [],
+  incomeEntries: [],
 };

@@ -1,4 +1,4 @@
-const CACHE_NAME = "farrieros-v3";
+const CACHE_NAME = "farrieros-v4";
 const APP_SHELL = ["/", "/index.html", "/manifest.webmanifest", "/icon.svg", "/icon-maskable.svg"];
 
 self.addEventListener("install", (event) => {

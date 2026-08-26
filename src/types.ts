@@ -1,5 +1,5 @@
 export type Foot = "LF" | "RF" | "LH" | "RH";
-export type Screen = "today" | "calendar" | "clients" | "horses" | "prep" | "finish" | "addClient" | "account";
+export type Screen = "today" | "calendar" | "clients" | "horses" | "prep" | "finish" | "finances" | "addClient" | "account";
 export type ServiceType = "trim" | "fronts" | "hinds" | "full_set" | "therapeutic";
 
 export interface FarrierBusinessProfile {
@@ -151,6 +151,15 @@ export interface BusinessExpense {
   createdAt: string;
 }
 
+export interface BusinessIncome {
+  id: string;
+  date: string;
+  amountCents: number;
+  source: string;
+  notes: string;
+  createdAt: string;
+}
+
 export interface AppPreferences {
   theme: ThemePreference;
   currency: string;
@@ -203,4 +212,5 @@ export interface AppData {
   photos: PhotoDocument[];
   preferences?: AppPreferences;
   expenses?: BusinessExpense[];
+  incomeEntries?: BusinessIncome[];
 }
