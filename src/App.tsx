@@ -17,6 +17,7 @@ import {
 import { getSupabaseClient } from "./cloud/supabase";
 import { integrationStatus } from "./config";
 import { CoifLinkRecord, CoifSubmissionRecord, coifOwnerName, createCoifLink, listCoifLinks, listCoifSubmissions, markCoifImported, revokeCoifLink } from "./cloud/coif";
+import BrandMark from "./BrandMark";
 
 const feet: Foot[] = ["LF", "RF", "LH", "RH"];
 
@@ -1004,7 +1005,7 @@ function App() {
     <div className="app-shell">
       <aside className="nav-rail">
         <div className="brand-block">
-          <div className="brand-mark">F</div>
+          <BrandMark />
           <div>
             <strong>FarrierOS</strong>
             <span>Field Operations</span>
@@ -1061,7 +1062,7 @@ function App() {
           <aside aria-label="Mobile navigation" className="mobile-nav-drawer">
             <div className="mobile-drawer-heading">
               <div className="brand-block">
-                <div className="brand-mark">F</div>
+                <BrandMark />
                 <div>
                   <strong>FarrierOS</strong>
                   <span>Field Operations</span>

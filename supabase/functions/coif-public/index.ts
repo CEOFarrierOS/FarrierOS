@@ -16,12 +16,24 @@ Deno.serve(async (request) => {
     const token = typeof body.token === "string" ? body.token : "";
     if (token.length < 32 || token.length > 200) return json({ error: "This COIF link is invalid." }, 400);
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
-    const { data: link, error } = await admin.from("coif_links").select("id,workspace_id,status,expires_at,owner_name_hint").eq("token_hash", await hashToken(token)).maybeSingle();
+    const { data: link, error } = await admin.from("coif_links").select("id,workspace_id,created_by,status,expires_at,owner_name_hint").eq("token_hash", await hashToken(token)).maybeSingle();
     if (error) throw error;
     if (!link || new Date(link.expires_at) <= new Date() || ["expired", "revoked", "imported"].includes(link.status)) return json({ error: "This COIF link has expired or is no longer available." }, 410);
     if (body.action === "inspect") {
       if (link.status === "sent") await admin.from("coif_links").update({ status: "opened", updated_at: new Date().toISOString() }).eq("id", link.id);
-      return json({ valid: true, ownerHint: link.owner_name_hint, expiresAt: link.expires_at });
+      const [{ data: workspace }, { data: profile }, { data: workspaceState }] = await Promise.all([
+        admin.from("workspaces").select("name").eq("id", link.workspace_id).maybeSingle(),
+        admin.from("profiles").select("full_name").eq("id", link.created_by).maybeSingle(),
+        admin.from("workspace_state").select("data").eq("workspace_id", link.workspace_id).maybeSingle(),
+      ]);
+      const savedBusiness = workspaceState?.data?.business;
+      return json({
+        valid: true,
+        ownerHint: link.owner_name_hint,
+        expiresAt: link.expires_at,
+        farrierName: String(savedBusiness?.farrierName || profile?.full_name || "Your farrier").slice(0, 120),
+        businessName: String(savedBusiness?.businessName || workspace?.name || "FarrierOS").slice(0, 160),
+      });
     }
     if (body.action !== "submit") return json({ error: "Invalid request." }, 400);
     if (link.status === "submitted") return json({ error: "This form has already been submitted." }, 409);

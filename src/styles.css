@@ -297,6 +297,8 @@ small {
   box-shadow: 0 8px 24px rgba(216, 179, 90, 0.16), inset 0 1px rgba(255, 255, 255, 0.32);
 }
 
+.brand-horseshoe { width: 28px; height: 28px; color: var(--accent-ink); filter: drop-shadow(0 1px rgba(255,255,255,.18)); }
+
 .app-icon {
   width: 20px;
   height: 20px;
@@ -1503,6 +1505,13 @@ dd {
 .coif-hero .brand-mark { margin-bottom: 1.5rem; }
 .coif-hero h1 { max-width: 14ch; margin-bottom: 0.75rem; }
 .coif-hero p:last-child { max-width: 58ch; color: #d9d2c4; }
+.coif-hero p:last-child strong { color: var(--accent-bright); }
+.coif-security-notice { display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 0.9rem; align-items: center; width: min(920px, 100%); border: 1px solid rgba(111, 152, 115, 0.38); border-radius: var(--radius-md); background: linear-gradient(135deg, rgba(79,111,82,.18), rgba(79,111,82,.07)); margin: 0 auto; padding: 1rem 1.15rem; }
+.coif-security-notice p { color: color-mix(in srgb, var(--ink) 72%, var(--muted)); margin: 0.25rem 0 0; max-width: 74ch; }
+.coif-lock { display: grid; place-items: center; width: 46px; height: 46px; border: 1px solid rgba(111,152,115,.55); border-radius: 50%; background: rgba(79,111,82,.24); color: #a7d3ab; font-size: 1.25rem; font-weight: 900; }
+.coif-progress { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.6rem; width: min(920px, 100%); margin: 0 auto; }
+.coif-progress span { display: flex; align-items: center; gap: 0.65rem; border: 1px solid var(--line); border-radius: 12px; background: color-mix(in srgb, var(--surface-raised) 84%, transparent); color: var(--muted); padding: 0.7rem 0.8rem; font-size: 0.78rem; font-weight: 700; }
+.coif-progress b { display: grid; place-items: center; width: 28px; height: 28px; flex: 0 0 28px; border-radius: 50%; background: rgba(216,179,90,.14); color: var(--accent-bright); }
 .coif-public-card { position: relative; width: min(920px, 100%); border: 1px solid var(--line); border-radius: var(--radius-md); background: linear-gradient(145deg, var(--surface-raised), var(--surface)); margin: 0 auto; padding: clamp(1.15rem, 4vw, 2rem); box-shadow: var(--shadow-sm); }
 .coif-step { position: absolute; right: 1.25rem; top: 1rem; color: rgba(216,179,90,.35); font-size: 2rem; font-weight: 900; }
 .coif-horse-list { display: grid; gap: 1rem; }
@@ -1793,6 +1802,9 @@ dd {
   .coif-manager-hero .status { justify-self: start; }
   .coif-public-shell { padding: 0.75rem; }
   .coif-hero { border-radius: 12px; }
+  .coif-progress { grid-template-columns: 1fr; }
+  .coif-security-notice { grid-template-columns: 40px minmax(0, 1fr); align-items: start; padding: 0.9rem; }
+  .coif-lock { width: 40px; height: 40px; }
 
   .client-card-controls,
   .subsection-header {

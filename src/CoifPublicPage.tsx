@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { callPublicCoif, CoifHorseIntake, CoifPayload } from "./cloud/coif";
+import BrandMark from "./BrandMark";
 
 const blankHorse = (): CoifHorseIntake => ({ name: "", breed: "", age: "", color: "", use: "", currentService: "", serviceIntervalWeeks: 6, lamenessIssues: "", medicalNotes: "", temperament: "", safetyNotes: "" });
 const initial: CoifPayload = {
@@ -12,9 +13,13 @@ export default function CoifPublicPage({ token }: { token: string }) {
   const [data, setData] = useState(initial);
   const [status, setStatus] = useState<"checking" | "ready" | "submitting" | "complete" | "invalid">("checking");
   const [message, setMessage] = useState("");
+  const [recipient, setRecipient] = useState({ farrierName: "your farrier", businessName: "their FarrierOS business" });
   useEffect(() => {
     if (import.meta.env.DEV && token === "preview") { setStatus("ready"); return; }
-    callPublicCoif(token, "inspect").then(() => setStatus("ready")).catch((error) => { setMessage(error instanceof Error ? error.message : "This link is unavailable."); setStatus("invalid"); });
+    callPublicCoif(token, "inspect").then((result) => {
+      setRecipient({ farrierName: result.farrierName || "your farrier", businessName: result.businessName || "their FarrierOS business" });
+      setStatus("ready");
+    }).catch((error) => { setMessage(error instanceof Error ? error.message : "This link is unavailable."); setStatus("invalid"); });
   }, [token]);
   const owner = (patch: Partial<CoifPayload["owner"]>) => setData((current) => ({ ...current, owner: { ...current.owner, ...patch } }));
   const property = (patch: Partial<CoifPayload["property"]>) => setData((current) => ({ ...current, property: { ...current.property, ...patch } }));
@@ -23,7 +28,9 @@ export default function CoifPublicPage({ token }: { token: string }) {
   if (status === "invalid") return <main className="coif-public-shell"><section className="coif-public-card"><p className="eyebrow">Link unavailable</p><h1>This COIF cannot be opened</h1><p>{message}</p></section></main>;
   if (status === "complete") return <main className="coif-public-shell"><section className="coif-public-card coif-success"><div className="coif-success-mark">✓</div><p className="eyebrow">Submission received</p><h1>Thank you</h1><p>Your information was securely sent to your farrier for review. You may close this page.</p></section></main>;
   return <main className="coif-public-shell"><form className="coif-public-form" onSubmit={async (event) => { event.preventDefault(); setStatus("submitting"); setMessage(""); try { await callPublicCoif(token, "submit", data); setStatus("complete"); } catch (error) { setMessage(error instanceof Error ? error.message : "Submission failed."); setStatus("ready"); } }}>
-    <header className="coif-hero"><div className="brand-mark">F</div><p className="eyebrow">Client Onboarding Information Form</p><h1>Welcome to FarrierOS</h1><p>Share the essentials your farrier needs, then add every horse they may service.</p></header>
+    <header className="coif-hero"><BrandMark /><p className="eyebrow">Client Onboarding Information Form</p><h1>A simpler way to get started.</h1><p>You are completing a Client Onboarding Information Form for <strong>{recipient.farrierName}</strong> at <strong>{recipient.businessName}</strong>.</p></header>
+    <aside className="coif-security-notice"><div className="coif-lock" aria-hidden="true">✓</div><div><strong>Private and securely delivered</strong><p>This unique link sends your information only to {recipient.farrierName} at {recipient.businessName}. It is not visible to other farriers or FarrierOS members.</p></div></aside>
+    <nav aria-label="COIF form steps" className="coif-progress"><span><b>1</b>Contact & location</span><span><b>2</b>Horse information</span><span><b>3</b>Review & submit</span></nav>
     {message && <div className="billing-notice">{message}</div>}
     <section className="coif-public-card"><span className="coif-step">01</span><h2>Contact and location</h2><div className="form-grid">
       <label>First name<input required autoComplete="given-name" value={data.owner.firstName} onChange={(event) => owner({ firstName: event.target.value })} /></label>

@@ -113,5 +113,5 @@ export async function callPublicCoif(token: string, action: "inspect" | "submit"
   });
   const result = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(result.error ?? "COIF service is temporarily unavailable.");
-  return result as { valid?: boolean; ownerHint?: string; expiresAt?: string; submitted?: boolean };
+  return result as { valid?: boolean; ownerHint?: string; expiresAt?: string; farrierName?: string; businessName?: string; submitted?: boolean };
 }
