@@ -929,6 +929,12 @@ main {
   margin-bottom: 1rem;
 }
 
+.calendar-window-controls { display: grid; grid-template-columns: 42px auto 42px; gap: .4rem; }
+.calendar-window-controls button { min-height: 42px; padding: .55rem .7rem; }
+.calendar-window-controls button:first-child,
+.calendar-window-controls button:last-child { font-size: 1.45rem; padding: 0; }
+.rolling-range-label { color: var(--muted); margin: -0.45rem 0 .8rem; font-size: .82rem; }
+
 .calendar-block,
 .month-cell {
   display: grid;
@@ -962,10 +968,14 @@ main {
 }
 
 .month-cell {
-  min-height: 34px;
-  padding: 0.1rem;
+  position: relative;
+  min-height: 64px;
+  padding: 0.35rem 0.2rem;
   text-align: center;
 }
+
+.month-cell.month-boundary { border-top: 3px solid var(--accent); background: linear-gradient(180deg, rgba(216,179,90,.11), var(--surface-raised)); }
+.month-cell em { position: absolute; top: 3px; left: 5px; color: var(--accent-bright); font-size: .55rem; font-style: normal; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
 
 .month-cell > span {
   font-size: 0.8rem;

@@ -1,6 +1,6 @@
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import { Session } from "@supabase/supabase-js";
-import { monthDates, TOMORROW, TODAY } from "./dateUtils";
+import { shiftDate, TOMORROW, TODAY } from "./dateUtils";
 import { completeJob } from "./jobCompletion";
 import { formatMonthlyPrice, hasFullAccess } from "./membership";
 import { buildOnMyWayMessage, createSmsHref } from "./messaging";
@@ -2007,11 +2007,14 @@ function CalendarScreen(props: {
   onScheduleExisting: (date: string, time: string, sendSms: boolean) => void;
   onScheduleNew: (date: string, time: string, sendSms: boolean) => void;
 }) {
-  const weekDays = Array.from({ length: 7 }, (_, index) => addDays(TODAY, index));
-  const monthDays = monthDates(props.selectedDate);
-  const monthLabel = new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(
-    new Date(`${props.selectedDate}T12:00:00`),
-  );
+  const [weekAnchor, setWeekAnchor] = useState(TODAY);
+  const [monthAnchor, setMonthAnchor] = useState(TODAY);
+  const weekDays = Array.from({ length: 7 }, (_, index) => shiftDate(weekAnchor, index));
+  const monthDays = Array.from({ length: 31 }, (_, index) => shiftDate(monthAnchor, index));
+  const rangeLabel = (start: string, end: string) => {
+    const format = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" });
+    return `${format.format(new Date(`${start}T12:00:00`))} – ${format.format(new Date(`${end}T12:00:00`))}`;
+  };
   const selectedAppointments = getAppointmentsForDate(props.data, props.selectedDate);
 
   return (
@@ -2072,8 +2075,9 @@ function CalendarScreen(props: {
                 <p className="eyebrow">Upcoming 7 days</p>
                 <h2>Horses By Day</h2>
               </div>
-              <span className="offline-pill">Tap a day</span>
+              <div className="calendar-window-controls"><button aria-label="Previous seven days" onClick={() => setWeekAnchor((date) => shiftDate(date, -7))}>‹</button><button onClick={() => { setWeekAnchor(TODAY); props.setSelectedDate(TODAY); }}>Today</button><button aria-label="Next seven days" onClick={() => setWeekAnchor((date) => shiftDate(date, 7))}>›</button></div>
             </div>
+            <p className="rolling-range-label">{rangeLabel(weekDays[0], weekDays[6])}</p>
             <div className="week-grid">
               {weekDays.map((date) => (
                 <button
@@ -2101,10 +2105,10 @@ function CalendarScreen(props: {
           <>
             <div className="section-heading">
               <div>
-                <p className="eyebrow">{monthLabel}</p>
-                <h2>Monthly Blocks</h2>
+                <p className="eyebrow">Rolling 31-day schedule</p>
+                <h2>{rangeLabel(monthDays[0], monthDays[30])}</h2>
               </div>
-              <span className="offline-pill">Tap for details</span>
+              <div className="calendar-window-controls"><button aria-label="Previous thirty-one days" onClick={() => setMonthAnchor((date) => shiftDate(date, -31))}>‹</button><button onClick={() => { setMonthAnchor(TODAY); props.setSelectedDate(TODAY); }}>Today</button><button aria-label="Next thirty-one days" onClick={() => setMonthAnchor((date) => shiftDate(date, 31))}>›</button></div>
             </div>
             <div className="month-grid">
               {(["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const).map((day) => (
@@ -2112,21 +2116,25 @@ function CalendarScreen(props: {
                   {day}
                 </span>
               ))}
-              {monthDays.map((date, index) => (
+              {monthDays.map((date, index) => {
+                const dateValue = new Date(`${date}T12:00:00`);
+                const startsMonth = dateValue.getDate() === 1;
+                return (
                 <button
-                  className={props.selectedDate === date ? "month-cell active" : "month-cell"}
+                  className={`${props.selectedDate === date ? "month-cell active" : "month-cell"}${startsMonth ? " month-boundary" : ""}`}
                   key={date}
-                  style={index === 0 ? { gridColumnStart: new Date(`${date}T12:00:00`).getDay() + 1 } : undefined}
+                  style={index === 0 ? { gridColumnStart: dateValue.getDay() + 1 } : undefined}
                   onClick={() => {
                     props.setSelectedDate(date);
                     props.setScheduleOpen(false);
                   }}
                 >
-                  <span>{new Date(`${date}T12:00:00`).getDate()}</span>
+                  {startsMonth && <em>{new Intl.DateTimeFormat("en-US", { month: "short" }).format(dateValue)}</em>}
+                  <span>{dateValue.getDate()}</span>
                   <strong>{getHorseCount(props.data, date)}</strong>
                   <small>horses</small>
                 </button>
-              ))}
+              )})}
             </div>
             <div className="calendar-schedule-entry">
               <div>
