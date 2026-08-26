@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { ReactNode, useEffect, useMemo, useState } from "react";
 import { Session } from "@supabase/supabase-js";
 import { monthDates, TOMORROW, TODAY } from "./dateUtils";
 import { completeJob } from "./jobCompletion";
@@ -32,6 +32,21 @@ const screenLabels: Record<Screen, string> = {
 };
 
 const primaryScreens: Screen[] = ["today", "calendar", "clients", "prep", "finish"];
+
+type AppIconName = "today" | "calendar" | "clients" | "prep" | "finish" | "add" | "account";
+
+function AppIcon({ name }: { name: AppIconName }) {
+  const paths: Record<AppIconName, ReactNode> = {
+    today: <><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4"/><circle cx="12" cy="12" r="4"/></>,
+    calendar: <><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></>,
+    clients: <><circle cx="9" cy="8" r="3"/><path d="M3.5 19c.6-3.2 2.4-5 5.5-5s4.9 1.8 5.5 5M16 7.5a2.5 2.5 0 0 1 0 5M17 14c2.2.4 3.4 2 3.7 4.5"/></>,
+    prep: <><path d="M6 3h12v18H6zM9 8l1.5 1.5L14 6M9 14l1.5 1.5L14 12M16 8h.01M16 14h.01"/></>,
+    finish: <><circle cx="12" cy="13" r="8"/><path d="M9 2h6M12 5v8l4 2"/></>,
+    add: <><circle cx="9" cy="8" r="3"/><path d="M3.5 19c.6-3.2 2.4-5 5.5-5 1.2 0 2.2.3 3 .8M18 13v8M14 17h8"/></>,
+    account: <><circle cx="12" cy="8" r="4"/><path d="M4 21c.8-4.7 3.4-7 8-7s7.2 2.3 8 7"/></>,
+  };
+  return <svg aria-hidden="true" className="app-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8">{paths[name]}</svg>;
+}
 
 const serviceLabels: Record<ServiceType, string> = {
   trim: "Trim",
@@ -992,7 +1007,7 @@ function App() {
           <div className="brand-mark">F</div>
           <div>
             <strong>FarrierOS</strong>
-            <span>Prototype 0</span>
+            <span>Field Operations</span>
           </div>
         </div>
         <nav>
@@ -1002,12 +1017,14 @@ function App() {
               key={key}
               onClick={() => navigateFromMenu(key)}
             >
-              {screenLabels[key]}
+              <AppIcon name={key as AppIconName} />
+              <span>{screenLabels[key]}</span>
             </button>
           ))}
         </nav>
         <button className="add-client-button" onClick={openAddClient}>
-          Add Client
+          <AppIcon name="add" />
+          <span>Add Client</span>
         </button>
         <button className="ghost-button" onClick={downloadBackup}>
           Export Backup
@@ -1047,7 +1064,7 @@ function App() {
                 <div className="brand-mark">F</div>
                 <div>
                   <strong>FarrierOS</strong>
-                  <span>Navigation</span>
+                  <span>Field Operations</span>
                 </div>
               </div>
               <button aria-label="Close navigation menu" className="icon-close" onClick={() => setMobileMenuOpen(false)}>
@@ -1057,7 +1074,8 @@ function App() {
             <nav>
               {primaryScreens.map((key) => (
                 <button className={screen === key ? "active" : ""} key={key} onClick={() => openMobileScreen(key)}>
-                  {screenLabels[key]}
+                  <AppIcon name={key as AppIconName} />
+                  <span>{screenLabels[key]}</span>
                 </button>
               ))}
             </nav>
@@ -1068,10 +1086,12 @@ function App() {
                 openAddClient();
               }}
             >
-              Add Client
+              <AppIcon name="add" />
+              <span>Add Client</span>
             </button>
             <button className={screen === "account" ? "active" : ""} onClick={() => openMobileScreen("account")}>
-              Account & Membership
+              <AppIcon name="account" />
+              <span>Account & Membership</span>
             </button>
           </aside>
         </div>
@@ -1102,7 +1122,8 @@ function App() {
               className={screen === "account" ? "account-button active" : "account-button"}
               onClick={() => setScreen("account")}
             >
-              Account
+              <AppIcon name="account" />
+              <span>Account</span>
             </button>
           </div>
         </header>
@@ -1702,6 +1723,15 @@ function TodayScreen(props: {
   const requiredInventory = Array.from(inventoryCounts.entries()).map(([item, quantity]) =>
     quantity > 1 ? `${quantity} × ${item}` : item,
   );
+  const completedStops = props.appointments.filter((appointment) => appointment.status === "complete").length;
+  const scheduledHorses = new Set(props.appointments.flatMap((appointment) => appointment.horseIds)).size;
+  const todayEarnings = props.appointments.reduce((sum, appointment) => sum + (appointment.earningsCents ?? 0), 0);
+  const currency = props.data.preferences?.currency ?? "USD";
+  const earningsLabel = new Intl.NumberFormat(undefined, { style: "currency", currency, maximumFractionDigits: 0 }).format(todayEarnings / 100);
+  const nextStop = props.appointments.find((appointment) => appointment.status !== "complete" && appointment.status !== "cancelled");
+  const nextBarn = nextStop ? props.data.barns.find((item) => item.id === nextStop.barnPropertyId) : null;
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
 
   function openManageStop(appt: Appointment) {
     setManageAppointmentId(appt.id);
@@ -1716,7 +1746,16 @@ function TodayScreen(props: {
   }
 
   return (
-    <section className="screen-grid">
+    <section className="screen-grid today-dashboard">
+      <div className="today-command">
+        <div className="today-welcome"><p className="eyebrow">Daily command center</p><h2>{greeting}{props.data.business.farrierName ? `, ${props.data.business.farrierName.split(" ")[0]}` : ""}.</h2><p>{nextStop ? <>Next up at <strong>{nextStop.startTime}</strong> — {nextBarn?.name || "unnamed property"}.</> : "Your route is clear. Add a stop from the calendar when you are ready."}</p></div>
+        <div className="today-summary-grid">
+          <div><span>Today’s stops</span><strong>{props.appointments.length}</strong><small>{completedStops} completed</small></div>
+          <div><span>Horses</span><strong>{scheduledHorses}</strong><small>on today’s route</small></div>
+          <div><span>Logged revenue</span><strong>{earningsLabel}</strong><small>completed stops</small></div>
+          <div><span>Tomorrow</span><strong>{tomorrowHorseIds.size}</strong><small>horses to prep</small></div>
+        </div>
+      </div>
       <div className="work-panel route-panel">
         <div className="section-heading">
           <div>
@@ -1725,6 +1764,7 @@ function TodayScreen(props: {
           </div>
           <button onClick={props.onPrep}>Prep Tomorrow</button>
         </div>
+        {props.appointments.length === 0 && <div className="empty-state premium-empty"><span className="empty-state-icon">◇</span><div><strong>No stops scheduled today</strong><p>Your day is clear. Use Calendar to schedule a client and their horses.</p></div></div>}
         {props.appointments.map((appt) => {
           const barn = props.data.barns.find((item) => item.id === appt.barnPropertyId) ?? unassignedBarn;
           const client = props.data.clients.find((item) => item.id === appt.clientId) ?? unassignedClient;
